@@ -194,8 +194,8 @@ MIT License - 详见[LICENSE](LICENSE)文件
 ## 📞 联系方式
 
 如有问题或建议，请通过以下方式联系：
-- 邮箱：[your-email@example.com]
-- GitHub Issues：[项目Issues页面]
+- 邮箱：[support@qinyining.cn]
+- [GitHub Issues](https://github.com/programming666/personal-blog/issues)
 
 ---
 

@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { FaUser, FaEnvelope, FaLock, FaCheckCircle, FaSpinner } from 'react-icons/fa';
+import TurnstileWidget from '../components/TurnstileWidget';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -16,6 +17,7 @@ const RegisterPage = () => {
   const [success, setSuccess] = useState('');
   const [formErrors, setFormErrors] = useState({});
   const [passwordMatch, setPasswordMatch] = useState(true);
+  const [turnstileToken, setTurnstileToken] = useState('');
 
   const { isAuthenticated, user, register } = useAuth();
   const navigate = useNavigate();
@@ -106,11 +108,18 @@ const RegisterPage = () => {
       setLoading(true);
       setError('');
 
+      if (!turnstileToken) {
+        setError('请完成人机验证');
+        setLoading(false);
+        return;
+      }
+
       const registrationSuccess = await register({
         username: formData.username,
         email: formData.email,
         password: formData.password,
-        passwordConfirm: formData.confirmPassword
+        passwordConfirm: formData.confirmPassword,
+        'cf-turnstile-response': turnstileToken
       });
 
       if (registrationSuccess) {
@@ -284,6 +293,15 @@ const RegisterPage = () => {
               {formErrors.confirmPassword && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.confirmPassword}</p>
               )}
+            </div>
+
+            {/* Turnstile 人机验证 */}
+            <div className="flex justify-center">
+              <TurnstileWidget
+                onSuccess={setTurnstileToken}
+                onError={() => setTurnstileToken('')}
+                onExpire={() => setTurnstileToken('')}
+              />
             </div>
 
             {/* 注册按钮 */}

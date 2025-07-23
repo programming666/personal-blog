@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const slugify = require('slugify');
-
 const PostSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -59,7 +58,6 @@ const PostSchema = new mongoose.Schema({
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
-
 // 虚拟关联评论
 PostSchema.virtual('comments', {
   ref: 'Comment',
@@ -67,7 +65,6 @@ PostSchema.virtual('comments', {
   foreignField: 'post',
   justOne: false
 });
-
 // 生成slug
 PostSchema.pre('save', function(next) {
   if (!this.isModified('title')) {
@@ -76,11 +73,9 @@ PostSchema.pre('save', function(next) {
   this.slug = slugify(this.title, { lower: true }) + '-' + Math.random().toString(36).substr(2, 5);
   next();
 });
-
 // 删除文章时删除关联评论
 PostSchema.pre('remove', async function(next) {
   await this.model('Comment').deleteMany({ post: this._id });
   next();
 });
-
 module.exports = mongoose.model('Post', PostSchema);

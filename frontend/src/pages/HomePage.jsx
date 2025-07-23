@@ -61,7 +61,7 @@ const HomePage = () => {
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">最新博客文章</h1>
         <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-          探索我的技术分享、学习心得和日常思考，希望能给你带来启发和帮助
+          探索大家的技术分享、学习心得或日常思考，希望能给你带来快乐
         </p>
       </div>
 

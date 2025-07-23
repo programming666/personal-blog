@@ -109,14 +109,39 @@ const MarkdownEditorNew = ({ initialContent, onSave, height = '600px' }) => {
               remarkPlugins={[remarkMath, remarkGfm]}
               rehypePlugins={[rehypeKatex]}
               components={{
-                code({ node, inline, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  return (
+              code({ node, inline, className, children, ...props }) {
+                const match = /language-(\w+)/.exec(className || '');
+                const isInlineCode = inline || (!match && String(children).indexOf('\n') === -1);
+                
+                return isInlineCode ? (
+                  <code 
+                    style={{
+                      backgroundColor: 'rgba(175, 184, 193, 0.2)',
+                      padding: '0.2em 0.4em',
+                      borderRadius: '3px',
+                      fontSize: '85%',
+                      fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace'
+                    }}
+                    {...props}
+                  >
+                    {children}
+                  </code>
+                ) : (
+                  <pre style={{
+                    backgroundColor: '#f6f8fa',
+                    borderRadius: '6px',
+                    fontSize: '85%',
+                    lineHeight: '1.45',
+                    overflow: 'auto',
+                    padding: '16px',
+                    margin: '0 0 16px'
+                  }}>
                     <code className={className} {...props}>
                       {children}
                     </code>
-                  );
-                },
+                  </pre>
+                );
+              },
                 table: ({ children }) => <table style={{ borderCollapse: 'collapse', width: '100%', margin: '1rem 0', border: '1px solid #ddd' }}>{children}</table>,
                 thead: ({ children }) => <thead style={{ backgroundColor: '#f5f5f5' }}>{children}</thead>,
                 tbody: ({ children }) => <tbody>{children}</tbody>,

@@ -35,7 +35,6 @@ exports.protect = async (req, res, next) => {
     });
   }
 };
-
 // 角色授权中间件
 exports.authorize = (...roles) => {
   return (req, res, next) => {

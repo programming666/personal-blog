@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { FaGithub, FaLock, FaUser, FaSpinner } from 'react-icons/fa';
+import TurnstileWidget from '../components/TurnstileWidget';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -13,6 +14,7 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formErrors, setFormErrors] = useState({});
+  const [turnstileToken, setTurnstileToken] = useState('');
 
   const { isAuthenticated, user, login } = useAuth();
   const navigate = useNavigate();
@@ -80,7 +82,13 @@ const LoginPage = () => {
       setLoading(true);
       setError('');
 
-      const loginSuccess = await login(formData);
+      if (!turnstileToken) {
+         setError('请完成人机验证');
+         setLoading(false);
+         return;
+       }
+ 
+       const loginSuccess = await login({ ...formData, 'cf-turnstile-response': turnstileToken });
 
       if (loginSuccess) {
         setSuccess('登录成功！正在跳转到仪表板...');
@@ -191,6 +199,11 @@ const LoginPage = () => {
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.password}</p>
               )}
             </div>
+
+            {/* Turnstile验证 */}
+             <div>
+               <TurnstileWidget onSuccess={setTurnstileToken} />
+             </div>
 
             {/* 登录按钮 */}
             <div>

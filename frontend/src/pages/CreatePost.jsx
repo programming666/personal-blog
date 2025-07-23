@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { postsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MarkdownEditorNew from '../components/MarkdownEditorNew';
+import TurnstileWidget from '../components/TurnstileWidget';
 import { FaArrowLeft, FaSave, FaEye, FaTags } from 'react-icons/fa';
 import '../styles/edit-post.css';
 
@@ -22,6 +23,7 @@ const CreatePost = () => {
   const [previewMode, setPreviewMode] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
   const [savingDraft, setSavingDraft] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
 
   // 如果未登录，重定向到登录页
   useEffect(() => {
@@ -57,6 +59,12 @@ const CreatePost = () => {
       return;
     }
 
+    // 草稿模式不需要Turnstile验证
+    if (!isDraft && !turnstileToken) {
+      setError('请先完成人机验证');
+      return;
+    }
+
     try {
       if (isDraft) setSavingDraft(true);
       else setLoading(true);
@@ -74,6 +82,11 @@ const CreatePost = () => {
         tags: tagsArray,
         status: isDraft ? 'draft' : formData.status
       };
+
+      // 非草稿模式添加Turnstile验证
+      if (!isDraft) {
+        postData['cf-turnstile-response'] = turnstileToken;
+      }
 
       const response = await postsAPI.createPost(postData);
       navigate(`/posts/${response.data.data._id}`);
@@ -277,6 +290,17 @@ const CreatePost = () => {
                   <option value="published">已发布</option>
                   <option value="draft">草稿</option>
                 </select>
+              </div>
+            </div>
+
+            {/* Turnstile 人机验证 */}
+            <div className="form-group">
+              <div className="flex justify-center">
+                <TurnstileWidget
+                  onSuccess={setTurnstileToken}
+                  onError={() => setTurnstileToken('')}
+                  onExpire={() => setTurnstileToken('')}
+                />
               </div>
             </div>
 

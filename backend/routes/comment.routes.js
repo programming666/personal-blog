@@ -7,6 +7,7 @@ const {
   likeComment 
 } = require('../controllers/comment.controller');
 const { protect } = require('../middleware/auth.middleware');
+const { optionalTurnstile } = require('../middleware/turnstile.middleware');
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ const router = express.Router();
 router.get('/post/:postId', getPostComments);
 
 // 受保护路由
-router.post('/', protect, createComment);
+router.post('/', protect, optionalTurnstile, createComment);
 router.put('/:id', protect, updateComment);
 router.delete('/:id', protect, deleteComment);
 router.post('/:id/like', protect, likeComment);

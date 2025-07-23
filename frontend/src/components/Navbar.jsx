@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { FaHome, FaSignInAlt, FaUserPlus, FaBlog, FaUserCircle, FaPlus, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaHome, FaSignInAlt, FaUserPlus, FaBlog, FaUserCircle, FaPlus, FaExternalLinkAlt, FaUsers } from 'react-icons/fa';
 import { useAuth } from "../context/AuthContext";
 
 const Navbar = () => {
@@ -20,6 +20,14 @@ const Navbar = () => {
             >
               <FaHome className="mr-2" />
               <span>首页</span>
+            </Link>
+
+            <Link
+              to="/team"
+              className="flex items-center text-gray-700 hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"
+            >
+              <FaUsers className="mr-2" />
+              <span>开发团队</span>
             </Link>
 
             {user ? (

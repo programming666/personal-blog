@@ -9,6 +9,9 @@ import UserDashboard from './pages/UserDashboard';
 import CreatePost from './pages/CreatePost';
 import EditPost from './pages/EditPost';
 import GitHubCallback from './pages/GitHubCallback';
+import TermsPage from './pages/TermsPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TeamPage from './pages/TeamPage';
 import './index.css';
 
 function App() {
@@ -25,6 +28,9 @@ function App() {
           <Route path="/create" element={<CreatePost />} />
           <Route path="/edit/:id" element={<EditPost />} />
           <Route path="/github-callback" element={<GitHubCallback />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/team" element={<TeamPage />} />
         </Routes>
       </main>
     </AuthProvider>

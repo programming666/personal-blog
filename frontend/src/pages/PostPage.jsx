@@ -10,6 +10,7 @@ import { FaEdit, FaTrash, FaThumbsUp, FaEye, FaComment, FaArrowLeft, FaUser } fr
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import remarkGfm from 'remark-gfm';
+import TurnstileWidget from '../components/TurnstileWidget';
 
 const PostPage = () => {
   const { id } = useParams();
@@ -21,6 +22,7 @@ const PostPage = () => {
   const [error, setError] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [isLiked, setIsLiked] = useState(false);
 
   // 格式化日期
@@ -126,15 +128,22 @@ const PostPage = () => {
     e.preventDefault();
     if (!commentText.trim() || !user) return;
 
+    if (!turnstileToken) {
+      alert('请先完成人机验证');
+      return;
+    }
+
     try {
       setSubmittingComment(true);
       const response = await commentsAPI.createComment({
         content: commentText,
-        post: post._id
+        post: post._id,
+        'cf-turnstile-response': turnstileToken
       });
 
       setComments([response.data.data, ...comments]);
       setCommentText('');
+      setTurnstileToken('');
     } catch (err) {
       console.error('Error submitting comment:', err);
       alert('评论提交失败，请稍后再试');
@@ -186,16 +195,23 @@ const PostPage = () => {
     e.preventDefault();
     if (!replyText.trim() || !user) return;
 
+    if (!turnstileToken) {
+      alert('请先完成人机验证');
+      return;
+    }
+
     try {
       const response = await commentsAPI.createComment({
         content: replyText,
         post: post._id,
-        parentComment: parentCommentId
+        parentComment: parentCommentId,
+        'cf-turnstile-response': turnstileToken
       });
 
       setComments([response.data.data, ...comments]);
       setReplyText('');
       setReplyTo(null);
+      setTurnstileToken('');
     } catch (err) {
       console.error('Error submitting reply:', err);
       alert('回复提交失败，请稍后再试');
@@ -212,27 +228,31 @@ const PostPage = () => {
         components={{
           code({ node, inline, className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '');
-            return !inline ? (
+            const isInlineCode = inline || (!match && String(children).indexOf('\n') === -1);
+            
+            return isInlineCode ? (
+              <code style={{
+                backgroundColor: 'rgba(175, 184, 193, 0.2)',
+                padding: '0.125rem 0.25rem',
+                borderRadius: '3px',
+                fontSize: '85%',
+                fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace'
+              }} {...props}>
+                {children}
+              </code>
+            ) : (
               <pre style={{ 
-                backgroundColor: 'var(--gray-100)', 
+                backgroundColor: '#f5f5f5', 
                 padding: '0.5rem', 
                 borderRadius: '0.25rem',
                 margin: '0.5rem 0',
-                fontSize: '0.875em'
+                fontSize: '0.875em',
+                overflow: 'auto'
               }}>
                 <code className={className} {...props}>
                   {children}
                 </code>
               </pre>
-            ) : (
-              <code style={{
-                backgroundColor: 'var(--gray-100)',
-                padding: '0.125rem 0.25rem',
-                borderRadius: '0.25rem',
-                fontSize: '0.875em'
-              }} {...props}>
-                {children}
-              </code>
             );
           },
           p: ({ children }) => <p style={{ marginBottom: '0.5rem', lineHeight: '1.6' }}>{children}</p>,
@@ -443,16 +463,32 @@ const PostPage = () => {
             components={{ 
               code({ node, inline, className, children, ...props }) {
                 const match = /language-(\w+)/.exec(className || '');
-                return !inline ? (
-                  <pre>
+                const isInlineCode = inline || (!match && String(children).indexOf('\n') === -1);
+                
+                return isInlineCode ? (
+                  <code style={{
+                    backgroundColor: 'rgba(175, 184, 193, 0.2)',
+                    padding: '0.2em 0.4em',
+                    borderRadius: '3px',
+                    fontSize: '85%',
+                    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace'
+                  }} {...props}>
+                    {children}
+                  </code>
+                ) : (
+                  <pre style={{
+                    backgroundColor: '#f6f8fa',
+                    borderRadius: '6px',
+                    fontSize: '85%',
+                    lineHeight: '1.45',
+                    overflow: 'auto',
+                    padding: '16px',
+                    margin: '0 0 16px'
+                  }}>
                     <code className={className} {...props}>
                       {children}
                     </code>
                   </pre>
-                ) : (
-                  <code className={className} {...props}>
-                    {children}
-                  </code>
                 );
               },
               h1: ({ children }) => <h1 style={{ fontSize: '2.5rem', margin: '2rem 0 1rem', fontWeight: 'bold' }}>{children}</h1>,
@@ -549,6 +585,13 @@ const PostPage = () => {
                 className="w-full p-4 border rounded-lg"
                 rows={4}
               ></textarea>
+            </div>
+            <div className="mb-4 flex justify-center">
+              <TurnstileWidget
+                onSuccess={setTurnstileToken}
+                onError={() => setTurnstileToken('')}
+                onExpire={() => setTurnstileToken('')}
+              />
             </div>
             <button
               type="submit"

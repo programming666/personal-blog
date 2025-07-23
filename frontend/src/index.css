@@ -1,7 +1,5 @@
-/* 导入自定义全局样式 */
 @import './styles/global.css';
 
-/* 基础样式重置 */
 * {
   margin: 0;
   padding: 0;
@@ -24,7 +22,6 @@ body {
   background-color: var(--gray-900);
 }
 
-/* 基础排版 */
 h1, h2, h3, h4, h5, h6 {
   font-weight: bold;
   margin-bottom: 1rem;
@@ -60,7 +57,6 @@ blockquote {
   border-left-color: var(--gray-600);
 }
 
-/* 链接样式 */
 a {
   color: var(--primary);
   text-decoration: none;
@@ -71,7 +67,6 @@ a:hover {
   color: var(--primary-hover);
 }
 
-/* 代码样式 */
 code {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 0.875em;
@@ -101,14 +96,12 @@ pre code {
   padding: 0;
 }
 
-/* 图片样式 */
 img {
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
 }
 
-/* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 8px;
 }

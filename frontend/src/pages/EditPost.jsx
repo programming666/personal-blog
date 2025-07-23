@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { postsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MarkdownEditorNew from '../components/MarkdownEditorNew';
+import TurnstileWidget from '../components/TurnstileWidget';
 import { FaArrowLeft, FaSave, FaEye, FaTrash } from 'react-icons/fa';
 import '../styles/edit-post.css';
 
@@ -25,6 +26,7 @@ const EditPost = () => {
   const [savingDraft, setSavingDraft] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [originalPost, setOriginalPost] = useState(null);
+  const [turnstileToken, setTurnstileToken] = useState('');
 
   // 如果未登录，重定向到登录页
   useEffect(() => {
@@ -101,6 +103,12 @@ const EditPost = () => {
       return;
     }
 
+    // 非草稿模式下需要Turnstile验证
+    if (!isDraft && !turnstileToken) {
+      setError('请先完成人机验证');
+      return;
+    }
+
     try {
       if (isDraft) setSavingDraft(true);
       else setLoading(true);
@@ -122,7 +130,18 @@ const EditPost = () => {
         status: postStatus
       };
 
+      // 非草稿模式下添加Turnstile token
+      if (!isDraft) {
+        postData['cf-turnstile-response'] = turnstileToken;
+      }
+
       await postsAPI.updatePost(id, postData);
+      
+      // 提交成功后重置token
+      if (!isDraft) {
+        setTurnstileToken('');
+      }
+      
       navigate(`/posts/${id}`);
     } catch (err) {
       console.error('Error updating post:', err);
@@ -358,6 +377,17 @@ const EditPost = () => {
                   <option value="published">已发布</option>
                   <option value="draft">草稿</option>
                 </select>
+              </div>
+            </div>
+
+            {/* Turnstile 人机验证 */}
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                <TurnstileWidget
+                  onSuccess={(token) => setTurnstileToken(token)}
+                  onError={() => setTurnstileToken('')}
+                  onExpire={() => setTurnstileToken('')}
+                />
               </div>
             </div>
 

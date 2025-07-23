@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const passport = require('passport');
+const { optionalTurnstile } = require('../middleware/turnstile.middleware');
 
 // 用户注册
  exports.register = async (req, res) => {

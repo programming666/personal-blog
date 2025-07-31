@@ -185,7 +185,7 @@ npm start
 
 ## 📄 许可证
 
-MIT License - 详见[LICENSE](LICENSE)文件
+ - 详见[LICENSE](LICENSE)文件
 
 ## 🤝 贡献指南
 

@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
+const Message = require('../models/Message');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -34,6 +35,99 @@ exports.adminLogin = async (req, res) => {
       success: true,
       token,
       user: adminUser
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// 管理员获取所有消息
+exports.getAllMessages = async (req, res) => {
+  try {
+    const messages = await Message.find({})
+      .populate('sender', 'username name')
+      .sort({ createdAt: -1 });
+    
+    res.status(200).json({
+      success: true,
+      count: messages.length,
+      data: messages
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// 管理员发送消息
+exports.sendMessage = async (req, res) => {
+  try {
+    const { title, content, recipients } = req.body;
+
+    // 验证参数
+    if (!title || !content || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '请提供标题、内容和至少一个接收者'
+      });
+    }
+
+    // 存储成功发送的消息和失败的消息
+    const sentMessages = [];
+    const failedMessages = [];
+
+    // 为每个接收者创建消息
+    for (const recipient of recipients) {
+      try {
+        let recipientIdentifier = recipient.value;
+        let recipientType = recipient.type; // user_id, email, username
+        
+        // 如果是邮箱或用户名，需要查找对应用户ID
+        if (recipientType === 'email' || recipientType === 'username') {
+          const user = await User.findOne({ [recipientType]: recipientIdentifier });
+          if (!user) {
+            failedMessages.push({
+              recipient: recipientIdentifier,
+              reason: `找不到对应的用户`
+            });
+            continue;
+          }
+          // 将标识符改为用户ID
+          recipientIdentifier = user._id.toString();
+          recipientType = 'user_id';
+        }
+        
+        // 创建消息
+        const message = await Message.create({
+          title,
+          content,
+          sender: req.user.username || 'admin', // 管理员用户名
+          recipient: recipientIdentifier,
+          recipientType: 'user_id' // 统一存储为用户ID
+        });
+        
+        sentMessages.push(message);
+      } catch (error) {
+        failedMessages.push({
+          recipient: recipient.value,
+          reason: error.message
+        });
+      }
+    }
+
+    // 返回结果
+    res.status(201).json({
+      success: true,
+      message: `成功发送 ${sentMessages.length} 条消息${failedMessages.length > 0 ? `，失败 ${failedMessages.length} 条` : ''}`,
+      data: {
+        sent: sentMessages,
+        failed: failedMessages
+      }
     });
   } catch (error) {
     res.status(500).json({

@@ -59,7 +59,11 @@ export const adminAPI = {
   updateUserStatus: (id, status) => api.put(`/api/admin/users/${id}/status`, status),
   deleteUser: (id) => api.delete(`/api/admin/users/${id}`),
   deletePost: (id) => api.delete(`/api/admin/posts/${id}`),
-  deleteComment: (id) => api.delete(`/api/admin/comments/${id}`)
+  deleteComment: (id) => api.delete(`/api/admin/comments/${id}`),
+  // 站内信相关API - 使用管理员路由
+  getMessages: () => api.get('/api/admin/messages'),
+  sendMessage: (messageData) => api.post('/api/admin/messages', messageData),
+
 };
 
 // 文章相关API
@@ -81,5 +85,7 @@ export const commentsAPI = {
   deleteComment: (id) => api.delete(`/api/comments/${id}`),
   likeComment: (id) => api.post(`/api/comments/${id}/like`)
 };
+
+
 
 export default api;

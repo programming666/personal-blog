@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
-import { FaHome, FaSignInAlt, FaUserPlus, FaBlog, FaUserCircle, FaPlus, FaExternalLinkAlt, FaUsers } from 'react-icons/fa';
+import { Link, useLocation } from 'react-router-dom';
+import { FaHome, FaSignInAlt, FaUserPlus, FaBlog, FaUserCircle, FaPlus, FaExternalLinkAlt, FaUsers, FaBell } from 'react-icons/fa';
 import { useAuth } from "../context/AuthContext";
+import MessageNotification from './MessageNotification';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -46,6 +47,7 @@ const Navbar = () => {
                   <FaPlus className="mr-2" />
                   <span>写文章</span>
                 </Link>
+                <MessageNotification />
                 <button
                   onClick={logout}
                   className="flex items-center text-gray-700 hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"

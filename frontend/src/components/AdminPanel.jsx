@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../services/api';
 import api from '../services/api'; // 导入原始api实例
-import { FaUsers, FaFileAlt, FaComments, FaTrash, FaBan, FaCheck, FaChartBar, FaSignOutAlt, FaUser } from 'react-icons/fa';
+import { FaUsers, FaFileAlt, FaComments, FaTrash, FaBan, FaCheck, FaChartBar, FaSignOutAlt, FaUser, FaEnvelope } from 'react-icons/fa';
+import AdminMessages from './AdminMessages';
 
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('stats');
@@ -15,7 +16,8 @@ const AdminPanel = () => {
     { id: 'stats', name: '统计', icon: FaChartBar },
     { id: 'users', name: '用户管理', icon: FaUsers },
     { id: 'posts', name: '文章管理', icon: FaFileAlt },
-    { id: 'comments', name: '评论管理', icon: FaComments }
+    { id: 'comments', name: '评论管理', icon: FaComments },
+    { id: 'messages', name: '站内信', icon: FaEnvelope }
   ];
 
   // 获取统计数据
@@ -144,6 +146,10 @@ const AdminPanel = () => {
         case 'comments':
           await fetchComments();
           break;
+        case 'messages':
+          // 消息管理不需要额外加载数据，将在AdminMessages组件中处理
+          break;
+
       }
       setLoading(false);
     };
@@ -415,6 +421,8 @@ const AdminPanel = () => {
               {activeTab === 'users' && renderUsers()}
               {activeTab === 'posts' && renderPosts()}
               {activeTab === 'comments' && renderComments()}
+              {activeTab === 'messages' && <AdminMessages />}
+
             </>
           )}
         </div>

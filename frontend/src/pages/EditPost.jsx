@@ -45,9 +45,32 @@ const EditPost = () => {
       const post = response.data.data;
       setOriginalPost(post);
 
+      // 等待用户认证状态加载完成
+      if (authLoading) {
+        console.log('Waiting for auth to load...');
+        setTimeout(() => {
+          fetchPost();
+        }, 100);
+        return;
+      }
+
       // 检查是否为文章作者
-      if (post.author._id !== user._id) {
-        setError('您没有权限编辑此文章');
+      console.log('Post author:', post.author);
+      console.log('Current user:', user);
+      console.log('Author ID:', post.author?._id);
+      console.log('User ID:', user?.id);
+      
+      if (!post.author || !user?.id) {
+        console.log('Missing author or user ID');
+        setError('您没有权限编辑此文章（未能获取文章作者或用户ID）');
+        return;
+      }
+      
+      // 检查作者ID是否匹配当前用户ID
+      const authorId = post.author._id || post.author;
+      if (authorId.toString() !== user.id.toString()) {
+        console.log('Author ID mismatch:', authorId, 'vs', user.id);
+        setError('您没有权限编辑此文章（作者不匹配）');
         return;
       }
 

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Message = require('../models/Message');
 const passport = require('passport');
 const { optionalTurnstile } = require('../middleware/turnstile.middleware');
 
@@ -33,6 +34,20 @@ const { optionalTurnstile } = require('../middleware/turnstile.middleware');
       email,
       password
     });
+
+    // 发送欢迎站内信
+    try {
+      await Message.create({
+        title: '欢迎',
+        content: '欢迎使用',
+        sender: '系统',
+        recipient: user._id.toString(),
+        recipientType: 'user_id'
+      });
+    } catch (messageError) {
+      console.error('发送欢迎消息失败:', messageError);
+      // 不中断注册流程，继续返回注册成功
+    }
 
     sendTokenResponse(user, 201, res);
   } catch (error) {
@@ -103,6 +118,22 @@ const { optionalTurnstile } = require('../middleware/turnstile.middleware');
       
       // 创建token
       const token = user.getSignedJwtToken();
+      
+      // 如果是新注册的GitHub用户，发送欢迎消息
+      if (req.user._isNew) {
+        try {
+          await Message.create({
+            title: '欢迎',
+            content: '欢迎使用',
+            sender: '系统',
+            recipient: user._id.toString(),
+            recipientType: 'user_id'
+          });
+        } catch (messageError) {
+          console.error('发送欢迎消息失败:', messageError);
+          // 不中断流程，继续重定向
+        }
+      }
       
       // 重定向到前端回调页面，附带token和用户信息
       const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/github-callback?` +

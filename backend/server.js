@@ -26,6 +26,7 @@ app.use(passport.initialize());
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/posts', require('./routes/post.routes'));
 app.use('/api/comments', require('./routes/comment.routes'));
+app.use('/api/admin', require('./routes/admin.routes'));
 // 根路由测试
 app.get('/', (req, res) => {
   res.json({ message: 'Personal Blog API running' });
@@ -40,4 +41,4 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-module.exports = app; 
+module.exports = app;

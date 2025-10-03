@@ -46,6 +46,18 @@ const UserSchema = new mongoose.Schema({
     enum: ['user', 'admin'],
     default: 'user'
   },
+  canComment: {
+    type: Boolean,
+    default: true
+  },
+  canPost: {
+    type: Boolean,
+    default: true
+  },
+  canLogin: {
+    type: Boolean,
+    default: true
+  },
   createdAt: {
     type: Date,
     default: Date.now

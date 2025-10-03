@@ -40,7 +40,7 @@ const Navbar = () => {
                   <span>控制台</span>
                 </Link>
                 <Link
-                  to="/create-post"
+                  to="/create"
                   className="flex items-center text-gray-700 hover:text-primary-600 dark:text-gray-200 dark:hover:text-primary-400"
                 >
                   <FaPlus className="mr-2" />

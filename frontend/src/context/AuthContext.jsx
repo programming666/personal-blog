@@ -6,30 +6,41 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(null); // 不从localStorage读取token
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // 初始化 - 验证token
+  // 初始化 - 自动验证普通用户token
   useEffect(() => {
-    const loadUser = async () => {
-      if (token) {
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        try {
+    const initializeAuth = async () => {
+      try {
+        // 检查localStorage中的token
+        const storedToken = localStorage.getItem('token');
+        
+        if (storedToken) {
+          // 尝试验证token
           const res = await api.get('/api/auth/me');
-          setUser(res.data.data);
-        } catch (err) {
-          localStorage.removeItem('token');
-          setToken(null);
-          delete api.defaults.headers.common['Authorization'];
+          if (res.data.success) {
+            setToken(storedToken);
+            setUser(res.data.user);
+            api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+          } else {
+            // token无效，清除
+            localStorage.removeItem('token');
+          }
         }
+      } catch (error) {
+        // token验证失败，清除
+        localStorage.removeItem('token');
+        console.error('自动登录失败:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
-    loadUser();
-  }, [token]);
+    initializeAuth();
+  }, []);
 
   // 注册
   const register = async (formData) => {
@@ -58,7 +69,12 @@ export const AuthProvider = ({ children }) => {
       const res = await api.post('/api/auth/login', formData);
       setToken(res.data.token);
       setUser(res.data.user);
-      localStorage.setItem('token', res.data.token);
+      
+      // 保存普通用户token到localStorage，管理员不保存
+      if (res.data.user && res.data.user.role !== 'admin') {
+        localStorage.setItem('token', res.data.token);
+      }
+      
       navigate('/dashboard');
       return true;
     } catch (err) {
@@ -70,10 +86,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 设置token（用于GitHub回调）
-  const setAuthToken = useCallback((newToken) => {
+  const setAuthToken = useCallback((newToken, userData = null) => {
     setToken(newToken);
     if (newToken) {
-      localStorage.setItem('token', newToken);
+      // 只有非管理员用户才保存token
+      if (userData && userData.role !== 'admin') {
+        localStorage.setItem('token', newToken);
+      }
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
     } else {
       localStorage.removeItem('token');
@@ -92,6 +111,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
     delete api.defaults.headers.common['Authorization'];
+    // 导航到首页，让AdminPage组件自动卸载
     navigate('/');
   };
 

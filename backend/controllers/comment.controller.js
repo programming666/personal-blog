@@ -4,6 +4,14 @@ const Post = require('../models/Post');
 // 创建评论
 exports.createComment = async (req, res) => {
   try {
+    // 检查用户是否被禁止评论
+    if (req.user.canComment === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to comment'
+      });
+    }
+
     const { content, post, parentComment } = req.body;
 
     // 验证文章是否存在

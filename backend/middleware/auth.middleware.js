@@ -25,8 +25,39 @@ exports.protect = async (req, res, next) => {
     // 验证token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // 将用户信息添加到请求对象
-    req.user = await User.findById(decoded.id);
+    // 检查是否为管理员用户
+    if (decoded.id === 'admin' && decoded.role === 'admin') {
+      // 创建虚拟管理员用户对象
+      req.user = {
+        _id: 'admin',
+        username: 'admin',
+        name: '系统管理员',
+        role: 'admin',
+        canLogin: true,
+        canComment: true,
+        canPost: true
+      };
+    } else {
+      // 普通用户，从数据库查找
+      req.user = await User.findById(decoded.id);
+      
+      // 检查用户是否被禁止登录
+      if (req.user && req.user.canLogin === false) {
+        return res.status(403).json({
+          success: false,
+          message: 'Your account has been suspended'
+        });
+      }
+    }
+    
+    // 确保用户存在
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to access this route'
+      });
+    }
+    
     next();
   } catch (error) {
     return res.status(401).json({

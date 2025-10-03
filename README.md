@@ -79,13 +79,22 @@ npm install
 
 创建`backend/.env`文件：
 ```env
-PORT=5000
-MONGODB_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
-GITHUB_CLIENT_ID=your_github_client_id
-GITHUB_CLIENT_SECRET=your_github_client_secret
-TURNSTILE_SECRET_KEY=
-TURNSTILE_SITE_KEY=
+PORT=端口
+MONGODB_URI=链接字符串
+JWT_SECRET=密钥
+GITHUB_CLIENT_ID=客户端ID
+GITHUB_CLIENT_SECRET=客户端密钥
+FRONTEND_URL=前端URL
+TURNSTILE_SECRET_KEY=Cloudflare Turnstile密钥
+TURNSTILE_SITE_KEY=Cloudflare Turnstile站点密钥
+ADMIN_USERNAME=管理员用户名
+ADMIN_PASSWORD=管理员密码
+```
+
+创建`frontend/.env`文件：
+```env
+VITE_API_URL=后端API URL
+VITE_TURNSTILE_SITE_KEY=Cloudflare Turnstile站点密钥
 ```
 
 5. **启动开发服务器**

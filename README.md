@@ -84,6 +84,8 @@ MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret
 GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
+TURNSTILE_SECRET_KEY=
+TURNSTILE_SITE_KEY=
 ```
 
 5. **启动开发服务器**

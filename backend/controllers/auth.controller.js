@@ -121,7 +121,23 @@ const { optionalTurnstile } = require('../middleware/turnstile.middleware');
 // 获取当前登录用户
  exports.getCurrentUser = async (req, res) => {
   try {
+    // 如果是虚拟管理员用户，直接返回
+    if (req.user._id === 'admin') {
+      return res.status(200).json({
+        success: true,
+        data: req.user
+      });
+    }
+    
+    // 普通用户从数据库获取
     const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
     res.status(200).json({
       success: true,
       data: user

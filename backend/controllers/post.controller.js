@@ -82,6 +82,14 @@ const Comment = require('../models/Comment');
 // 创建文章
  exports.createPost = async (req, res) => {
   try {
+    // 检查用户是否被禁止发布文章
+    if (req.user.canPost === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not allowed to create posts'
+      });
+    }
+
     const postData = {
       ...req.body,
       author: req.user.id

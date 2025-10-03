@@ -10,6 +10,10 @@ const {
   deleteUser,
   getStats
 } = require('../controllers/admin.controller');
+const {
+  sendMessage,
+  getAllMessages
+} = require('../controllers/message.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 
 const router = express.Router();
@@ -32,5 +36,9 @@ router.delete('/posts/:id', protect, authorize('admin'), deletePost);
 // 评论管理
 router.get('/comments', protect, authorize('admin'), getAllComments);
 router.delete('/comments/:id', protect, authorize('admin'), deleteComment);
+
+// 消息管理
+router.get('/messages', protect, authorize('admin'), getAllMessages);
+router.post('/messages', protect, authorize('admin'), sendMessage);
 
 module.exports = router;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../services/api';
 import api from '../services/api'; // 导入原始api实例
 import { FaUsers, FaFileAlt, FaComments, FaTrash, FaBan, FaCheck, FaChartBar, FaSignOutAlt, FaUser } from 'react-icons/fa';

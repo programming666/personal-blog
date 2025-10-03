@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { postsAPI } from '../services/api';
 import { FaExternalLinkAlt, FaEye, FaThumbsUp, FaClock } from 'react-icons/fa';

@@ -68,7 +68,7 @@ PostSchema.virtual('comments', {
 // 生成slug
 PostSchema.pre('save', function(next) {
   if (!this.isModified('title')) {
-    next();
+    return next();
   }
   this.slug = slugify(this.title, { lower: true }) + '-' + Math.random().toString(36).substr(2, 5);
   next();

@@ -5,7 +5,7 @@ const CommentSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please provide comment content'],
     trim: true,
-    maxlength: [1000, 'Comment cannot be more than 1000 characters']
+    maxlength: [100, '评论不能超过 100 个字符']
   },
   post: {
     type: mongoose.Schema.Types.ObjectId,
@@ -25,7 +25,15 @@ const CommentSchema = new mongoose.Schema({
   likes: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }],
+  moderationStatus: {
+    type: String,
+    enum: ['approved', 'pending', 'rejected'],
+    default: 'approved',
+    index: true
+  },
+  moderationReason: { type: String, default: '' },
+  moderationModel: { type: String, default: '' }
 }, {
   timestamps: true
 });

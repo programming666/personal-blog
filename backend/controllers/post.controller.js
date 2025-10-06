@@ -1,255 +1,143 @@
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
 
-// 获取所有文章
- exports.getPosts = async (req, res) => {
+exports.getPosts = async (req, res) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
     const skip = (page - 1) * limit;
     const tag = req.query.tag;
-    const author = req.query.author;
 
-    // 构建查询条件
     const query = { status: 'published' };
     if (tag) query.tags = tag;
-    if (author) query.author = author;
 
-    // 执行查询
-    const posts = await Post.find(query)
-      .populate('author', 'username name avatar')
-      .skip(skip)
-      .limit(limit)
-      .sort({ publishedAt: -1 });
-
-    // 获取总数
-    const total = await Post.countDocuments(query);
+    const [posts, total] = await Promise.all([
+      Post.find(query)
+        .populate('author', 'username name avatar')
+        .skip(skip)
+        .limit(limit)
+        .sort({ publishedAt: -1 }),
+      Post.countDocuments(query)
+    ]);
 
     res.status(200).json({
       success: true,
       count: posts.length,
-      pagination: {
-        total,
-        page,
-        pages: Math.ceil(total / limit),
-        limit
-      },
+      pagination: { total, page, pages: Math.ceil(total / limit), limit },
       data: posts
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 获取单篇文章
- exports.getPost = async (req, res) => {
+exports.getPost = async (req, res) => {
   try {
     const post = await Post.findOne({
-      $or: [
-        { _id: req.params.id },
-        { slug: req.params.slug }
-      ]
+      $or: [{ _id: req.params.id }, { slug: req.params.slug }]
     })
       .populate('author', 'username name avatar bio')
       .populate('comments');
 
     if (!post) {
-      return res.status(404).json({
-        success: false,
-        message: 'Post not found'
-      });
+      return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
-    // 更新阅读计数
     post.viewCount = (post.viewCount || 0) + 1;
     await post.save();
 
-    res.status(200).json({
-      success: true,
-      data: post
-    });
+    res.status(200).json({ success: true, data: post });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 创建文章
- exports.createPost = async (req, res) => {
+exports.createPost = async (req, res) => {
   try {
-    // 检查用户是否被禁止发布文章
-    if (req.user.canPost === false) {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not allowed to create posts'
-      });
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only admin can create posts' });
     }
 
-    const postData = {
-      ...req.body,
-      author: req.user.id
-    };
-    
-    // 处理缩略图上传
+    const postData = { ...req.body, author: req.user._id };
     if (req.file && req.file.path) {
       postData.thumbnail = req.file.path;
     }
 
     const post = await Post.create(postData);
-    res.status(201).json({
-      success: true,
-      data: post
-    });
+    res.status(201).json({ success: true, data: post });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error creating post',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error creating post', error: error.message });
   }
 };
 
-// 更新文章
- exports.updatePost = async (req, res) => {
+exports.updatePost = async (req, res) => {
   try {
-    let post = await Post.findById(req.params.id);
-    
-    if (!post) {
-      return res.status(404).json({
-        success: false,
-        message: 'Post not found'
-      });
-    }
-
-    // 检查权限
-    if (post.author.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this post'
-      });
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only admin can update posts' });
     }
 
     const updateData = { ...req.body };
-    
-    // 处理缩略图更新
     if (req.file && req.file.path) {
       updateData.thumbnail = req.file.path;
     }
 
-    post = await Post.findByIdAndUpdate(req.params.id, updateData, {
+    const post = await Post.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true
     });
 
-    res.status(200).json({
-      success: true,
-      data: post
-    });
+    if (!post) {
+      return res.status(404).json({ success: false, message: 'Post not found' });
+    }
+
+    res.status(200).json({ success: true, data: post });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error updating post',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Error updating post', error: error.message });
   }
 };
 
-// 删除文章
- exports.deletePost = async (req, res) => {
+exports.deletePost = async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
-
-    if (!post) {
-      return res.status(404).json({
-        success: false,
-        message: 'Post not found'
-      });
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only admin can delete posts' });
     }
 
-    // 检查权限
-    if (post.author.toString() !== req.user.id && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this post'
-      });
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
     await post.deleteOne();
+    await Comment.deleteMany({ post: req.params.id });
 
-    res.status(200).json({
-      success: true,
-      data: {}
-    });
+    res.status(200).json({ success: true, data: {} });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// 点赞文章
- exports.likePost = async (req, res) => {
+exports.likePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-
     if (!post) {
-      return res.status(404).json({
-        success: false,
-        message: 'Post not found'
-      });
+      return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
-    // 检查用户是否已经点赞
-    const alreadyLiked = post.likes.some(
-      like => like.toString() === req.user.id
-    );
-
-    if (alreadyLiked) {
-      // 取消点赞
-      post.likes = post.likes.filter(
-        like => like.toString() !== req.user.id
-      );
+    const userId = req.user._id.toString();
+    const idx = post.likes.findIndex((l) => l.toString() === userId);
+    if (idx >= 0) {
+      post.likes.splice(idx, 1);
     } else {
-      // 添加点赞
-      post.likes.push(req.user.id);
+      post.likes.push(req.user._id);
     }
-
     await post.save();
 
     res.status(200).json({
       success: true,
-      likes: post.likes.length,
-      data: post.likes
+      liked: idx < 0,
+      count: post.likes.length
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-// 获取用户文章
- exports.getUserPosts = async (req, res) => {
-  try {
-    const posts = await Post.find({ author: req.user.id })
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: posts.length,
-      data: posts
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -1,92 +1,125 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authAPI } from '../services/api';
+// @ts-nocheck
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
-interface User {
-  _id: string;
-  username: string;
-  email: string;
-  avatar?: string;
-}
+const AuthContext = createContext();
 
-interface AuthContextType {
-  user: User | null;
-  isAuthenticated: boolean;
-  loading: boolean;
-  error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
-}
+const ADMIN_USER_KEY = 'adminUser';
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  // 初始化：检查本地存储的用户信息
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    const initializeAuth = async () => {
+      try {
+        const storedToken = localStorage.getItem('token');
+        const storedAdminUser = localStorage.getItem(ADMIN_USER_KEY);
+
+        if (storedToken) {
+          // 普通用户:Bearer token 路径
+          api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+          try {
+            const res = await api.get('/api/auth/me');
+            if (res.data.success) {
+              setToken(storedToken);
+              setUser(res.data.data);
+              return;
+            }
+          } catch {
+            // fall through to clear
+          }
+          localStorage.removeItem('token');
+          delete api.defaults.headers.common['Authorization'];
+        }
+
+        if (storedAdminUser) {
+          // admin:依赖 HttpOnly cookie,/me 自动带 cookie 验证
+          try {
+            const res = await api.get('/api/auth/me');
+            if (res.data.success) {
+              setUser(res.data.data);
+              // 标记 token 存在(实际值不暴露给 JS,但有 cookie)
+              setToken('__admin_cookie__');
+              return;
+            }
+          } catch {
+            // cookie 过期或失效
+          }
+          localStorage.removeItem(ADMIN_USER_KEY);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    initializeAuth();
   }, []);
 
-  // 登录
-  const login = async (email: string, password: string) => {
-    setLoading(true);
+  const loginWithGitHub = () => {
     setError(null);
-    try {
-      const response = await authAPI.login(email, password);
-      const userData = response.data.data;
-      setUser(userData);
-      localStorage.setItem('user', JSON.stringify(userData));
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.message || '登录失败，请检查邮箱和密码');
-    } finally {
-      setLoading(false);
-    }
+    window.location.href = `${api.defaults.baseURL}/api/auth/github`;
   };
 
-  // 注册
-  const register = async (username: string, email: string, password: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await authAPI.register(username, email, password);
-      const userData = response.data.data;
-      setUser(userData);
-      localStorage.setItem('user', JSON.stringify(userData));
-      navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.message || '注册失败，请稍后再试');
-    } finally {
-      setLoading(false);
+  const setAuthToken = useCallback((newToken, userData = null) => {
+    setToken(newToken);
+    if (newToken) {
+      if (userData && userData.role === 'admin') {
+        // admin token 已通过 HttpOnly cookie 由服务端下发,前端不存
+        // 仅持久化 user 信息,刷新后再用 cookie 调 /me 确认
+        if (userData) localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(userData));
+        // 不设 axios 默认 Authorization 头 — 走 cookie
+      } else if (userData) {
+        localStorage.setItem('token', newToken);
+        api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+      }
+    } else {
+      localStorage.removeItem('token');
+      localStorage.removeItem(ADMIN_USER_KEY);
+      delete api.defaults.headers.common['Authorization'];
     }
-  };
+  }, []);
 
-  // 退出登录
-  const logout = () => {
+  const setAuthUser = useCallback((userData) => {
+    setUser(userData);
+    if (userData?.role === 'admin') {
+      localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(userData));
+    }
+  }, []);
+
+  const logout = async () => {
+    const wasAdmin = user?.role === 'admin';
+    if (wasAdmin) {
+      try {
+        await api.post('/api/admin/logout');
+      } catch {
+        // 即使失败也清前端
+      }
+      localStorage.removeItem(ADMIN_USER_KEY);
+    } else {
+      localStorage.removeItem('token');
+    }
+    setToken(null);
     setUser(null);
-    localStorage.removeItem('user');
-    navigate('/login');
+    delete api.defaults.headers.common['Authorization'];
+    navigate('/');
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: !!user,
+        token,
         loading,
         error,
-        login,
-        register,
-        logout
+        loginWithGitHub,
+        logout,
+        setAuthToken,
+        setAuthUser,
+        isAuthenticated: !!user
       }}
     >
       {children}
@@ -94,10 +127,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
+export const useAuth = () => useContext(AuthContext);

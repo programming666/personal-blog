@@ -2,13 +2,23 @@ const passport = require('passport');
 const GitHubStrategy = require('passport-github2').Strategy;
 const User = require('../models/User');
 
+// 优先使用 GITHUB_CALLBACK_URL;若未设,根据 BACKEND_URL/PORT 推导;最后回退到 localhost dev 默认
+function resolveCallbackURL() {
+  if (process.env.GITHUB_CALLBACK_URL) return process.env.GITHUB_CALLBACK_URL;
+  const base = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 8089}`;
+  return `${base.replace(/\/$/, '')}/api/auth/github/callback`;
+}
+
 module.exports = (passport) => {
+  const callbackURL = resolveCallbackURL();
+  console.log(`[passport] GitHub OAuth callback URL: ${callbackURL}`);
+
   passport.use(
     new GitHubStrategy(
       {
         clientID: process.env.GITHUB_CLIENT_ID,
         clientSecret: process.env.GITHUB_CLIENT_SECRET,
-        callbackURL: `http://localhost:8089/api/auth/github/callback`,
+        callbackURL,
         scope: ['user:email']
       },
       async (accessToken, refreshToken, profile, done) => {
@@ -42,9 +52,7 @@ module.exports = (passport) => {
             username: githubUsername,
             email: email || `${githubUsername}@github.com`,
             name: profile.displayName || githubUsername,
-            password: 'github_oauth', // 虚拟密码
-            avatar: profile.photos?.[0]?.value,
-            provider: 'github'
+            avatar: profile.photos?.[0]?.value
           });
 
           done(null, user);

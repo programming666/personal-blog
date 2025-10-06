@@ -24,6 +24,9 @@ exports.protect = async (req, res, next) => {
   try {
     // 验证token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    console.log('Token decoded:', decoded);
+    console.log('Authorization header:', req.headers.authorization);
 
     // 检查是否为管理员用户
     if (decoded.id === 'admin' && decoded.role === 'admin') {
@@ -37,6 +40,7 @@ exports.protect = async (req, res, next) => {
         canComment: true,
         canPost: true
       };
+      console.log('Admin user created:', req.user);
     } else {
       // 普通用户，从数据库查找
       req.user = await User.findById(decoded.id);
@@ -48,6 +52,7 @@ exports.protect = async (req, res, next) => {
           message: 'Your account has been suspended'
         });
       }
+      console.log('Regular user found:', req.user);
     }
     
     // 确保用户存在
@@ -69,12 +74,17 @@ exports.protect = async (req, res, next) => {
 // 角色授权中间件
 exports.authorize = (...roles) => {
   return (req, res, next) => {
+    console.log('Authorize middleware - req.user:', req.user);
+    console.log('Required roles:', roles);
+    
     if (!roles.includes(req.user.role)) {
+      console.log('Access denied - user role:', req.user.role, 'required roles:', roles);
       return res.status(403).json({
         success: false,
         message: `User role ${req.user.role} is not authorized to access this route`
       });
     }
+    console.log('Access granted - user role:', req.user.role);
     next();
   };
 };

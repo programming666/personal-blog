@@ -61,9 +61,15 @@ export const adminAPI = {
   deletePost: (id) => api.delete(`/api/admin/posts/${id}`),
   deleteComment: (id) => api.delete(`/api/admin/comments/${id}`),
   // 站内信相关API - 使用管理员路由
-  getMessages: () => api.get('/api/admin/messages'),
-  sendMessage: (messageData) => api.post('/api/admin/messages', messageData),
-
+  getMessages: () => api.get('/api/messages/all'),
+  sendMessage: (messageData) => api.post('/api/messages', messageData),
+  // 广播消息相关API
+  getBroadcastUsers: (params) => api.get('/api/broadcasts/users', { params }),
+  createBroadcast: (broadcastData) => api.post('/api/broadcasts', broadcastData),
+  getBroadcasts: (params) => api.get('/api/broadcasts', { params }),
+  getBroadcastDetails: (id) => api.get(`/api/broadcasts/${id}`),
+  retryBroadcast: (id) => api.post(`/api/broadcasts/${id}/retry`),
+  getBroadcastStats: () => api.get('/api/broadcasts/stats/summary')
 };
 
 // 文章相关API

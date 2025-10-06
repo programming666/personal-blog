@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { adminAPI } from '../services/api';
 import api from '../services/api'; // 导入原始api实例
-import { FaUsers, FaFileAlt, FaComments, FaTrash, FaBan, FaCheck, FaChartBar, FaSignOutAlt, FaUser, FaEnvelope } from 'react-icons/fa';
+import { FaUsers, FaFileAlt, FaComments, FaTrash, FaBan, FaCheck, FaChartBar, FaSignOutAlt, FaUser, FaEnvelope, FaBroadcastTower } from 'react-icons/fa';
 import AdminMessages from './AdminMessages';
+import AdminBroadcast from './AdminBroadcast';
 
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('stats');
@@ -17,7 +18,8 @@ const AdminPanel = () => {
     { id: 'users', name: '用户管理', icon: FaUsers },
     { id: 'posts', name: '文章管理', icon: FaFileAlt },
     { id: 'comments', name: '评论管理', icon: FaComments },
-    { id: 'messages', name: '站内信', icon: FaEnvelope }
+    { id: 'messages', name: '站内信', icon: FaEnvelope },
+    { id: 'broadcast', name: '广播管理', icon: FaBroadcastTower }
   ];
 
   // 获取统计数据
@@ -149,7 +151,9 @@ const AdminPanel = () => {
         case 'messages':
           // 消息管理不需要额外加载数据，将在AdminMessages组件中处理
           break;
-
+        case 'broadcast':
+          // 广播管理不需要额外加载数据，将在AdminBroadcast组件中处理
+          break;
       }
       setLoading(false);
     };
@@ -422,7 +426,7 @@ const AdminPanel = () => {
               {activeTab === 'posts' && renderPosts()}
               {activeTab === 'comments' && renderComments()}
               {activeTab === 'messages' && <AdminMessages />}
-
+              {activeTab === 'broadcast' && <AdminBroadcast />}
             </>
           )}
         </div>

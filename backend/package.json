@@ -15,6 +15,7 @@
     "express": "^4.19.2",
     "express-rate-limit": "^8.5.2",
     "express-slow-down": "^3.1.0",
+    "https-proxy-agent": "^9.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.1",
     "multer": "^2.0.2",
@@ -22,6 +23,7 @@
     "passport-github2": "^0.1.12",
     "sharp": "^0.34.3",
     "slugify": "^1.6.6",
+    "socks-proxy-agent": "^10.0.0",
     "speakeasy": "^2.0.0"
   },
   "devDependencies": {

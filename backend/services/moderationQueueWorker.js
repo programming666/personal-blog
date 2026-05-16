@@ -18,8 +18,8 @@ const tick = async () => {
       if (!next) break;
 
       const verdict = await moderateComment(next.content);
-      // 如果配额恰好被吃光,verdict 可能还是 queued — 退出等下一轮
-      if (verdict.status === 'queued') break;
+      // 如果配额仍然没恢复,verdict 还是 pending — 不要再 save(无变化),直接退出等下一轮
+      if (verdict.status === 'pending') break;
 
       next.moderationStatus = verdict.status;
       next.moderationReason = verdict.reason || '';

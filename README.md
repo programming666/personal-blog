@@ -42,7 +42,7 @@
 - 多 key 轮询:`GEMINI_API_KEYS` 逗号分隔,每个 `(key, model)` 各自 **RPM=10 / RPD=1500** 滑动窗口
 - 选 slot 时优先用量最低的组合,自动负载均衡
 - 审核目标聚焦三类:**AI 生成内容**(模板化、过度规整、LLM 自暴露) / **机器人灌水**(空泛赞美、与正文无关、乱码) / **推广营销**(商业链接、加微信、SEO 关键词)
-- 出三种 verdict:`approved` / `rejected` / `queued`
+- 出三种 verdict:`approved` / `rejected` / `pending`(配额耗尽 / AI 调用失败 / 输出无法解析,会被 queue worker 稍后重试)
 - 配额耗尽 → 标 `pending`,后台 `moderationQueueWorker` 每 30s 一轮扫待审,配额恢复自动出队
 - AI 调用失败 / 输出无法解析 → 同样进队列等重试,不丢消息
 - 未配 `GEMINI_API_KEYS` → 审核停用,评论直接发布
@@ -112,6 +112,9 @@ ADMIN_PASSWORD=请改成强密码
 
 # AI 评论审核 (可选 — 不填则审核停用,评论直接发布)
 GEMINI_API_KEYS=key1,key2,key3          # 逗号分隔多 key
+
+# (可选) AI 出站代理 — 国内服务器调 Gemini 时用,支持 socks5/http
+# GEMINI_PROXY=socks5://127.0.0.1:1080
 ```
 
 **`frontend/.env`**

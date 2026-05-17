@@ -23,34 +23,40 @@ module.exports = (passport) => {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          // 根据githubId查找已有用户
-          let user = await User.findOne({ githubId: profile.id });
+          // 通过 githubId 查找已绑定的用户。
+          // 关键:role !== 'admin' — 绝不允许 OAuth 把 admin 账号当作 GitHub 用户取回,
+          // 否则一次"用户名/邮箱碰撞"导致的旧合并会让所有 OAuth 登录永久解析到 admin。
+          let user = await User.findOne({
+            githubId: profile.id,
+            role: { $ne: 'admin' }
+          });
           if (user) return done(null, user);
 
-          const email = profile.emails?.[0]?.value;
-          const githubUsername = profile.username;
-          
-          // 检查用户名或邮箱是否已存在
-          const existingUser = await User.findOne({
-            $or: [
-              { username: githubUsername },
-              { email: email }
-            ]
-          });
+          const githubUsername = profile.username || `gh-${profile.id}`;
+          const githubEmail = profile.emails?.[0]?.value;
 
-          if (existingUser) {
-            // 关联GitHub账号到已有用户
-            existingUser.githubId = profile.id;
-            existingUser.avatar = profile.photos?.[0]?.value;
-            await existingUser.save();
-            return done(null, existingUser);
+          // ❌ 不再按 username/email 自动合并到已有用户 —
+          //    旧逻辑会把 GitHub 身份吸进同 username/email 的 admin 账号,
+          //    导致评论作者全部指向 admin、历史无法分辨。
+          //    碰撞时改用后缀生成独立用户名/邮箱。
+
+          let username = githubUsername;
+          if (await User.exists({ username })) {
+            username = `${githubUsername}-gh${profile.id}`;
           }
 
-          // 创建新用户
+          let email = githubEmail || `gh-${profile.id}@github.local`;
+          if (await User.exists({ email })) {
+            email = `gh-${profile.id}@github.local`;
+            if (await User.exists({ email })) {
+              email = `gh-${profile.id}-${Date.now()}@github.local`;
+            }
+          }
+
           user = await User.create({
             githubId: profile.id,
-            username: githubUsername,
-            email: email || `${githubUsername}@github.com`,
+            username,
+            email,
             name: profile.displayName || githubUsername,
             avatar: profile.photos?.[0]?.value
           });

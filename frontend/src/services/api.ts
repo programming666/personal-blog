@@ -67,6 +67,11 @@ export const adminAPI = {
   twoFactorSetup: () => api.post('/api/admin/2fa/setup'),
   twoFactorEnable: (code) => api.post('/api/admin/2fa/enable', { code }),
   twoFactorDisable: (code) => api.post('/api/admin/2fa/disable', { code }),
+  getProfile: () => api.get('/api/admin/profile'),
+  updateProfile: (formData) =>
+    api.put('/api/admin/profile', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }),
   uploadLogo: (file) => {
     const fd = new FormData();
     fd.append('logo', file);

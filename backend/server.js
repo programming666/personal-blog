@@ -9,8 +9,25 @@ require('dotenv').config();
 const app = express();
 app.set('trust proxy', 1);
 // 中间件配置
+// CORS 白名单 — 严格允许 FRONTEND_URL + 可选 ALLOWED_ORIGINS,杜绝 origin: true 的反射:
+// 旧逻辑会把任意 Origin 反射回 ACAO,配合 credentials: true 让任何站点的脚本
+// 在管理员登录期间跨域读取 /api/admin/* 响应。
+const corsAllowlist = [
+  process.env.FRONTEND_URL,
+  ...(process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean)
+]
+  .filter(Boolean)
+  .map((o) => o.replace(/\/$/, ''));
+
 app.use(cors({
-  origin: true, // 允许所有来源
+  origin: (origin, cb) => {
+    // 同源 / 无浏览器 (curl, 服务端到服务端) — Origin 缺失,直接放行
+    if (!origin) return cb(null, true);
+    const normalized = origin.replace(/\/$/, '');
+    if (corsAllowlist.includes(normalized)) return cb(null, true);
+    // 不在白名单 — 返回 false 让 cors 中间件不写 ACAO 头,浏览器会自然拒绝
+    return cb(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']

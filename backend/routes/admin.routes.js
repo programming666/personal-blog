@@ -19,10 +19,13 @@ const {
   moderateCommentManual,
   retryModeration,
   getModerationQuota,
-  runModerationTick
+  runModerationTick,
+  getAdminProfile,
+  updateAdminProfile
 } = require('../controllers/admin.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 const { adminLoginLimiter, adminTwoFactorLimiter } = require('../middleware/rateLimit.middleware');
+const { upload, processAvatar } = require('../middleware/upload.middleware');
 
 const router = express.Router();
 
@@ -34,6 +37,17 @@ router.get('/2fa/status', protect, authorize('admin'), adminTwoFactorStatus);
 router.post('/2fa/setup', protect, authorize('admin'), adminTwoFactorSetup);
 router.post('/2fa/enable', protect, authorize('admin'), adminTwoFactorEnable);
 router.post('/2fa/disable', protect, authorize('admin'), adminTwoFactorDisable);
+
+// 个人资料 — 仅 admin 可编辑;GitHub 用户走 OAuth 自动同步,无此入口
+router.get('/profile', protect, authorize('admin'), getAdminProfile);
+router.put(
+  '/profile',
+  protect,
+  authorize('admin'),
+  upload.single('avatar'),
+  processAvatar,
+  updateAdminProfile
+);
 
 router.get('/stats', protect, authorize('admin'), getStats);
 

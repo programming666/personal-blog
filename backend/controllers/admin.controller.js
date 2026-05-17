@@ -97,6 +97,7 @@ exports.adminLogin = async (req, res) => {
         id: adminUser._id,
         username: adminUser.username,
         name: adminUser.name,
+        avatar: adminUser.avatar,
         role: 'admin',
         twoFactorEnabled: adminUser.twoFactorEnabled
       }
@@ -149,6 +150,7 @@ exports.adminTwoFactorVerify = async (req, res) => {
         id: adminUser._id,
         username: adminUser.username,
         name: adminUser.name,
+        avatar: adminUser.avatar,
         role: 'admin',
         twoFactorEnabled: true
       }
@@ -453,6 +455,69 @@ exports.runModerationTick = async (req, res) => {
   try {
     tickNow();
     res.status(202).json({ success: true, message: 'queue tick scheduled' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ---------- 管理员个人资料 ----------
+// 仅 admin 角色可调用 — 普通 GitHub 用户的 name/avatar 由 OAuth 自动同步,不允许在站点内自改
+
+exports.getAdminProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('username name avatar role');
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: '仅管理员可查看' });
+    }
+    res.status(200).json({
+      success: true,
+      data: {
+        id: user._id,
+        username: user.username,
+        name: user.name,
+        avatar: user.avatar
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.updateAdminProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: '仅管理员可修改个人资料' });
+    }
+
+    // name — 1-50 字符,trim 后非空
+    if (typeof req.body.name === 'string') {
+      const name = req.body.name.trim();
+      if (name.length === 0 || name.length > 50) {
+        return res.status(400).json({ success: false, message: '显示名长度需在 1-50 字符之间' });
+      }
+      user.name = name;
+    }
+
+    // avatar — 来自 multer 上传(processAvatar 已写盘),存绝对 URL
+    if (req.file && req.file.filename) {
+      const backendBase = process.env.BACKEND_URL
+        ? process.env.BACKEND_URL.replace(/\/$/, '')
+        : `${req.protocol}://${req.get('host')}`;
+      user.avatar = `${backendBase}/uploads/${req.file.filename}`;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: user._id,
+        username: user.username,
+        name: user.name,
+        avatar: user.avatar
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

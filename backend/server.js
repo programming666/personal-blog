@@ -34,6 +34,18 @@ app.use('/api/comments', require('./routes/comment.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/announcements', require('./routes/announcement.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
+
+// 仅在 SERVE_FRONTEND=true 时,把前端 dist/ 也由 Express 服务
+if (process.env.SERVE_FRONTEND === 'true') {
+  const path = require('path');
+  const distPath = path.resolve(__dirname, '..', 'frontend', 'dist');
+  // 静态资源 — 加 7d 缓存
+  app.use(express.static(distPath, { maxAge: '7d', index: false }));
+  // SPA fallback — 所有非 /api、非 /uploads 的请求都返回 index.html
+  app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 // 根路由测试
 app.get('/', (req, res) => {
   res.json({ message: 'Personal Blog API running' });

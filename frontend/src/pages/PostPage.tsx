@@ -30,12 +30,13 @@ const Avatar = ({ user, size = 'md' }) => {
     md: 'w-11 h-11 text-base',
     lg: 'w-14 h-14 text-lg'
   };
+  const displayName = user?.name || user?.username || '';
   if (user?.avatar) {
-    return <img src={user.avatar} alt={user.username} className={`${sizes[size]} rounded-full object-cover`} />;
+    return <img src={user.avatar} alt={displayName} className={`${sizes[size]} rounded-full object-cover`} />;
   }
   return (
     <div className={`${sizes[size]} rounded-full bg-neutral-200 dark:bg-neutral-800 grid place-items-center text-neutral-700 dark:text-neutral-300 font-medium`}>
-      {user?.username?.[0]?.toUpperCase() || <FaUser />}
+      {displayName[0]?.toUpperCase() || <FaUser />}
     </div>
   );
 };
@@ -246,7 +247,7 @@ const PostPage = () => {
                 <Avatar user={comment.author} size="sm" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-neutral-900 dark:text-white">{comment.author?.username}</span>
+                    <span className="font-medium text-neutral-900 dark:text-white">{comment.author?.name || comment.author?.username}</span>
                     <span className="text-xs text-neutral-500 dark:text-neutral-400">{formatDate(comment.createdAt)}</span>
                   </div>
                   <div className="mt-2 prose prose-sm prose-neutral dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
@@ -291,7 +292,7 @@ const PostPage = () => {
                       <textarea
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
-                        placeholder={`回复 ${comment.author?.username}…`}
+                        placeholder={`回复 ${comment.author?.name || comment.author?.username}…`}
                         className="input-field min-h-24 resize-y"
                         rows={3}
                         maxLength={COMMENT_MAX}
@@ -384,7 +385,7 @@ const PostPage = () => {
             <div className="flex items-center gap-3">
               <Avatar user={post.author} size="md" />
               <div>
-                <div className="font-medium text-neutral-900 dark:text-white">{post.author?.username}</div>
+                <div className="font-medium text-neutral-900 dark:text-white">{post.author?.name || post.author?.username}</div>
                 <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
                   <span className="flex items-center gap-1">
                     <FaCalendarAlt /> {formatDate(post.createdAt)}

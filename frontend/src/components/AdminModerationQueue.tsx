@@ -149,7 +149,7 @@ const AdminModerationQueue = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-medium text-neutral-900 dark:text-white">
-                      {c.author?.username || '匿名'}
+                      {c.author?.name || c.author?.username || '匿名'}
                     </span>
                     <span className="text-neutral-500 dark:text-neutral-400">
                       文章: {c.post?.title || '—'}

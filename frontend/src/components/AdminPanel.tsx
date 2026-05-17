@@ -23,6 +23,7 @@ import AdminAnnouncements from './AdminAnnouncements';
 import AdminSecurity from './AdminSecurity';
 import AdminSiteSettings from './AdminSiteSettings';
 import AdminModerationQueue from './AdminModerationQueue';
+import AdminProfile from './AdminProfile';
 
 const tabs = [
   { id: 'stats', name: '统计概览', icon: FaChartBar },
@@ -32,6 +33,7 @@ const tabs = [
   { id: 'moderation', name: '审核队列', icon: FaShieldAlt },
   { id: 'announcements', name: '公告管理', icon: FaBullhorn },
   { id: 'settings', name: '站点设置', icon: FaCog },
+  { id: 'profile', name: '个人资料', icon: FaUser },
   { id: 'security', name: '安全', icon: FaShieldAlt }
 ];
 
@@ -229,7 +231,7 @@ const AdminPanel = () => {
             <div className="min-w-0 flex-1">
               <h4 className="font-medium text-neutral-900 dark:text-white truncate">{p.title}</h4>
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 flex gap-3 flex-wrap">
-                <span>作者：{p.author?.username || '—'}</span>
+                <span>作者：{p.author?.name || p.author?.username || '—'}</span>
                 <span>发布：{new Date(p.createdAt).toLocaleDateString()}</span>
                 <span>阅读：{p.viewCount || 0}</span>
               </p>
@@ -262,7 +264,7 @@ const AdminPanel = () => {
             <div className="min-w-0 flex-1">
               <p className="text-neutral-800 dark:text-neutral-200 line-clamp-2">{c.content}</p>
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 flex gap-3 flex-wrap">
-                <span>作者：{c.author?.username || '—'}</span>
+                <span>作者：{c.author?.name || c.author?.username || '—'}</span>
                 <span>文章：{c.post?.title || '—'}</span>
                 <span>时间：{new Date(c.createdAt).toLocaleDateString()}</span>
               </p>
@@ -321,7 +323,7 @@ const AdminPanel = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading && activeTab !== 'announcements' && activeTab !== 'settings' && activeTab !== 'security' && activeTab !== 'moderation' ? (
+        {loading && activeTab !== 'announcements' && activeTab !== 'settings' && activeTab !== 'security' && activeTab !== 'moderation' && activeTab !== 'profile' ? (
           <div className="space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-20 rounded-2xl bg-neutral-100 dark:bg-neutral-800/60 animate-pulse"></div>
@@ -336,6 +338,7 @@ const AdminPanel = () => {
             {activeTab === 'moderation' && <AdminModerationQueue />}
             {activeTab === 'announcements' && <AdminAnnouncements />}
             {activeTab === 'settings' && <AdminSiteSettings />}
+            {activeTab === 'profile' && <AdminProfile />}
             {activeTab === 'security' && <AdminSecurity />}
           </>
         )}

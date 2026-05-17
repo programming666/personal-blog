@@ -61,4 +61,23 @@ const processLogo = async (req, res, next) => {
   }
 };
 
-module.exports = { upload, processImage, processLogo };
+const processAvatar = async (req, res, next) => {
+  if (!req.file) {
+    return next();
+  }
+  try {
+    const filename = `avatar-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
+    const filepath = path.join(uploadDir, filename);
+    await sharp(req.file.buffer)
+      .resize(256, 256, { fit: 'cover' }) // 头像强制正方形
+      .png()
+      .toFile(filepath);
+    req.file.filename = filename;
+    req.file.path = `uploads/${filename}`;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { upload, processImage, processLogo, processAvatar };

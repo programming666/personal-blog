@@ -17,6 +17,17 @@ MongoDB on localhost:27017 (仅本机访问)
 
 部署建议:用 **单域名 + 路径** 暴露 (推荐, cookie sameSite=Lax 不用想跨站问题),或 **双子域** (blog.example.com + api.example.com, 同 site 也 OK)。本文按 **单域名** `blog.example.com` 写,双子域请看末尾「替代方案」。
 
+### ⚠️ 关键概念:前后端是两个独立组件
+
+| 组件 | 是什么 | 由谁运行 | 开机自启 |
+|------|--------|----------|----------|
+| **后端** | Node 进程,Express 监听 8089 | PM2 (systemd 子进程) | `pm2 startup` 注册后 ✓ |
+| **前端** | `dist/` 里的静态 HTML/CSS/JS,**没有进程** | Nginx 直接 serve 硬盘 | apt 安装 Nginx 默认 ✓ |
+| **数据库** | MongoDB | systemd | `systemctl enable mongod` 后 ✓ |
+
+后端**不会**自动构建或拉起前端。前端任何改动都必须手动 `cd frontend && npm run build`(或跑 `deploy.sh`)重新生成 `dist/`,Nginx 才能 serve 到新内容。
+PM2 只管 `backend/server.js` 这一个 Node 进程。
+
 ---
 
 ## 0. 服务器准备
@@ -539,6 +550,7 @@ node scripts/migrate-to-announcements.js
 
 | 现象 | 原因 / 处理 |
 |------|-------------|
+| 改了前端代码、`pm2 restart` 后浏览器没变 | PM2 只重启后端 Node 进程,**不**自动构建前端。必须 `cd frontend && npm run build` 重建 `dist/`,Nginx 才会 serve 到新内容 |
 | GitHub OAuth `redirect_uri_mismatch` | OAuth App 的 callback URL 与 `GITHUB_CALLBACK_URL` 不完全相同 |
 | Admin 登录 200 但刷新页面就退出 | `NODE_ENV=production` 让 cookie 加了 Secure,但你还在 HTTP 测试。开 HTTPS 或临时 `NODE_ENV=development` |
 | 评论被 `请求来源不受信任` 拒 | `FRONTEND_URL` 没填,或填错了协议/域名,导致 `checkOrigin` 不放行 |
@@ -587,6 +599,198 @@ sudo ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled/blog
 sudo nginx -t && sudo systemctl reload nginx
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d blog.example.com --redirect
+```
+
+---
+
+## 14. 不用 Nginx 的方案
+
+三种替代,各有取舍。
+
+### 14.1 Caddy — 最接近 Nginx 的替代
+
+Caddy 自带 Let's Encrypt **自动签发 + 自动续期**,配置文件比 Nginx 短一个数量级,适合"想要一个反代但讨厌 Nginx DSL"的场景。
+
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | \
+  sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | \
+  sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install -y caddy
+```
+
+把 Caddy 配置写到 `/etc/caddy/Caddyfile`:
+
+```caddy
+blog.example.com {
+    root * /var/www/blog/frontend/dist
+    encode gzip zstd
+
+    # /api/* 和 /uploads/* 反代到后端
+    @backend path /api/* /uploads/*
+    reverse_proxy @backend 127.0.0.1:8089
+
+    # 单文件上传上限(对应 Nginx 的 client_max_body_size)
+    request_body {
+        max_size 12MB
+    }
+
+    # SPA fallback + 静态文件
+    try_files {path} /index.html
+    file_server
+
+    # 安全头
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # 静态资源长缓存
+    @assets path /assets/* /fonts/*
+    header @assets Cache-Control "public, max-age=2592000, immutable"
+}
+```
+
+```bash
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy   # 首次启动会自动申请 Let's Encrypt 证书
+```
+
+确保 DNS 已经把 `blog.example.com` 解析到服务器,且 80/443 端口对外开放。Caddy 会在启动时自动签发,**不用** certbot。
+
+**取舍**:配置极简、HTTPS 全自动;但 Caddy 在国内服务器对 ACME challenge 偶尔有抽风,部分网络下首签可能要重试或先放开 80 端口对外。
+
+---
+
+### 14.2 让 Express 自己 serve 前端 + Cloudflare Tunnel
+
+如果**不想开 80/443 端口**(避免被扫端口、不想搞证书、想要 DDoS 防护),最简方案是 **Express 同进程 serve 静态前端 + Cloudflare Tunnel 暴露**。
+
+#### 步骤 1: 让 Express serve 前端 dist
+
+把 `backend/server.js` 路由部分改成:
+
+```js
+// ... 现有路由保持不动 ...
+
+// 路由配置(原有的几个 app.use 不变)
+app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/posts', require('./routes/post.routes'));
+app.use('/api/comments', require('./routes/comment.routes'));
+app.use('/api/admin', require('./routes/admin.routes'));
+app.use('/api/announcements', require('./routes/announcement.routes'));
+app.use('/api/settings', require('./routes/settings.routes'));
+
+// 仅在 SERVE_FRONTEND=true 时,把前端 dist/ 也由 Express 服务
+if (process.env.SERVE_FRONTEND === 'true') {
+  const path = require('path');
+  const distPath = path.resolve(__dirname, '..', 'frontend', 'dist');
+  // 静态资源 — 加 7d 缓存
+  app.use(express.static(distPath, { maxAge: '7d', index: false }));
+  // SPA fallback — 所有非 /api、非 /uploads 的请求都返回 index.html
+  app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
+// 错误处理中间件(保持不动)
+app.use((err, req, res, next) => { ... });
+```
+
+在 `backend/.env` 加:
+```env
+SERVE_FRONTEND=true
+```
+
+后端进程现在同时服务 API + 静态前端。
+
+> ⚠️ 此时前端 `VITE_API_URL` 应填**与外部访问相同的域名**(例如 `https://blog.example.com`),或留空走相对路径。
+
+#### 步骤 2: 用 Cloudflare Tunnel 暴露
+
+无需开放服务器的 80/443 端口,流量从 Cloudflare 边缘出站连接到本地。
+
+```bash
+# 安装 cloudflared (Ubuntu 24.04)
+curl -L --output cloudflared.deb \
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+sudo dpkg -i cloudflared.deb
+rm cloudflared.deb
+
+# 登录(浏览器打开授权页,选择你的域名)
+cloudflared tunnel login
+
+# 创建隧道
+cloudflared tunnel create blog
+# 输出会显示 Tunnel ID 与 credentials 路径 ~/.cloudflared/<uuid>.json
+```
+
+写 `~/.cloudflared/config.yml`:
+```yaml
+tunnel: <你的-tunnel-id>
+credentials-file: /home/deploy/.cloudflared/<你的-tunnel-id>.json
+
+ingress:
+  - hostname: blog.example.com
+    service: http://127.0.0.1:8089
+  - service: http_status:404
+```
+
+把域名指向隧道(自动写 CNAME):
+```bash
+cloudflared tunnel route dns blog 'blog.example.com'
+```
+
+注册成 systemd 服务:
+```bash
+sudo cloudflared service install
+sudo systemctl enable --now cloudflared
+sudo systemctl status cloudflared
+```
+
+到这一步,**整套架构只剩两个进程**:
+- `pm2:blog-backend` — Express(API + 静态前端)
+- `cloudflared` — Cloudflare 隧道
+
+服务器**无需任何入站端口**(连 22 都可以只走 Cloudflare WARP)。Cloudflare 自动提供 HTTPS + CDN + DDoS 防护。
+
+**取舍**:架构最简,免证书运维,自带 CDN;但所有流量必须经过 Cloudflare,且 Node 单进程做静态文件性能比 Nginx 差几倍 — 小流量个人博客足够,真高 QPS 还是 Nginx/Caddy。`/uploads/*` 的图片如果量大可考虑搬到对象存储。
+
+---
+
+### 14.3 单进程裸跑 + 自己上 HTTPS
+
+如果连 Caddy/Tunnel 都不想装,把 Express 直接监听 443 也能跑(配合上面 14.2 的 SERVE_FRONTEND 改动):
+
+```env
+PORT=443
+NODE_ENV=production
+SERVE_FRONTEND=true
+```
+
+但 Node 监听 1024 以下端口需要 root 或 `setcap`:
+```bash
+sudo setcap 'cap_net_bind_service=+ep' $(which node)
+```
+
+HTTPS 证书需要自己用 `certbot certonly --standalone` 拿一份 PEM,再让 Express 通过 `https.createServer({ cert, key }, app).listen(443)` 起。证书续期时要短暂停掉 Express。
+
+**不推荐**这条路 —— 没有反代/CDN 缓冲,且 Node 进程一旦崩了整个站直接挂。仅在玩具/内网场景下用。
+
+---
+
+## 15. 选型决策树
+
+```
+是否需要 HTTPS?
+├─ 是
+│  ├─ 想要 CDN/DDoS 防护、不想开端口  → 14.2 Cloudflare Tunnel + Express
+│  ├─ 想要极简配置、ACME 一键搞定     → 14.1 Caddy
+│  └─ 想要最高性能、灵活规则          → 第 7~8 节 Nginx + certbot (推荐)
+└─ 否(纯内网/已有上游负载均衡)
+   └─ 14.3 Express 裸跑 / Tunnel 内网模式
 ```
 
 完。

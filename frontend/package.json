@@ -4,8 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/copy-katex-fonts.cjs && vite",
+    "prebuild": "node scripts/copy-katex-fonts.cjs",
     "build": "tsc -b && vite build",
+    "postinstall": "node scripts/copy-katex-fonts.cjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -46,9 +46,14 @@ if (process.env.SERVE_FRONTEND === 'true') {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
-// 根路由测试
-app.get('/', (req, res) => {
-  res.json({ message: 'Personal Blog API running' });
+// 健康检查
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Personal Blog API running',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
 });
 // 错误处理中间件
 app.use((err, req, res, next) => {

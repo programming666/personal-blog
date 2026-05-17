@@ -445,7 +445,7 @@ certbot 会自动改写 Nginx 配置里的证书路径并加上 OCSP stapling。
 
 ```bash
 # 1) 后端健康
-curl https://blog.example.com/api/posts
+curl https://blog.example.com/api/health    # {"success":true,"message":"...","uptime":...}
 
 # 2) 前端首页
 curl -I https://blog.example.com/

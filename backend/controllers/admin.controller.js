@@ -434,7 +434,12 @@ exports.retryModeration = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Comment not found' });
     }
     if (!comment.populated('post')) await comment.populate('post', 'title content');
-    const verdict = await moderateComment(comment.content, { article: comment.post ? { title: comment.post.title, content: comment.post.content } : null });
+    let replyToCtx = null;
+    if (comment.replyTo) {
+      await comment.populate('replyTo', 'content');
+      replyToCtx = { content: comment.replyTo.content };
+    }
+    const verdict = await moderateComment(comment.content, { article: comment.post ? { title: comment.post.title, content: comment.post.content } : null, replyTo: replyToCtx });
     applyVerdictToComment(comment, verdict, comment.content);
     await comment.save();
     res.status(200).json({ success: true, data: comment, verdict });

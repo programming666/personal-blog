@@ -15,20 +15,35 @@ exports.createComment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Post not found' });
     }
 
+    // 回复扁平化:回复最多嵌套一层(一层评论下直接挂所有回复)。
+    // parentComment 永远指向一层评论;replyTo 保留用户实际点"回复"的那条,供 AI 审阅与前端 @ 展示
+    let storeParent = parentComment || null;
+    let replyTo = parentComment || null;
+    let replyToCtx = null;
+    if (parentComment) {
+      const replyTarget = await Comment.findById(parentComment).populate('author', 'username name');
+      if (replyTarget) {
+        if (replyTarget.parentComment) storeParent = replyTarget.parentComment; // 被回复的也是一条回复 → 提升挂到一层评论下
+        replyToCtx = { content: replyTarget.content, authorName: replyTarget.author?.name || replyTarget.author?.username || '' };
+      } else {
+        storeParent = null; replyTo = null;
+      }
+    }
     // 调 AI 审核 — admin 评论免审
     const isAdmin = req.user.role === 'admin';
     let verdict;
     if (isAdmin) {
       verdict = { status: 'approved', reason: 'admin bypass' };
     } else {
-      verdict = await moderateComment(content, { article: { title: targetPost.title, content: targetPost.content } });
+      verdict = await moderateComment(content, { article: { title: targetPost.title, content: targetPost.content }, replyTo: replyToCtx });
     }
 
     const comment = new Comment({
       content,
+      parentComment: storeParent,
+      replyTo,
       post,
       author: req.user._id,
-      parentComment: parentComment || null,
       moderationStatus: verdict.status,
       moderationReason: verdict.reason || '',
       moderationModel: verdict.model || ''
@@ -76,7 +91,7 @@ exports.getPostComments = async (req, res) => {
       post: req.params.postId,
       moderationStatus: 'approved'
     };
-    const comments = await Comment.find(filter).sort({ createdAt: -1 });
+    const comments = await Comment.find(filter).sort({ createdAt: -1 }).populate('replyTo', 'username name avatar');
     res.status(200).json({ success: true, count: comments.length, data: comments });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -97,7 +112,8 @@ exports.updateComment = async (req, res) => {
     comment = await Comment.findByIdAndUpdate(
       req.params.id,
       { content: req.body.content },
-      { new: true, runValidators: true }
+      // 管理员豁免 100 字上限,其余用户仍受 schema 限制
+      { new: true, runValidators: req.user.role !== 'admin' }
     ).populate('author', 'username name avatar role');
 
     res.status(200).json({ success: true, data: comment });

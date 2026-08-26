@@ -70,7 +70,7 @@ allow 表示是否放行展示;tone 表示语气是否友好;rewritten 仅在 to
 // 正文上下文上限 — 传给模型的文章截断长度(够判断离题即可,避免 token 浪费)
 const ARTICLE_CONTEXT_LIMIT = 4000;
 
-const buildUserPrompt = (text, article) => {
+const buildUserPrompt = (text, article, replyTo) => {
   const parts = [];
   if (article && (article.title || article.content)) {
     const title = String(article.title || '').trim() || '未命名文章';
@@ -80,7 +80,14 @@ const buildUserPrompt = (text, article) => {
       : content;
     parts.push(`相关文章(用于判断评论是否离题):\n《${title}》\n${excerpt}`);
   }
-  parts.push(`待审核评论:\n"""${text}"""`);
+  // 回复语境:被回复的评论,用于判断是在延续对话还是离题/抬杠
+  if (replyTo && (replyTo.content || replyTo.authorName)) {
+    const ctx = [];
+    if (replyTo.authorName) ctx.push(`评论作者: ${replyTo.authorName}`);
+    if (replyTo.content) ctx.push(`评论内容: ${String(replyTo.content).slice(0, 1000)}`);
+    parts.push(`被回复的评论(该评论是回复此条,用于判断对话语境):\n${ctx.join('\n')}`);
+  }
+  parts.push(`待审核评论:` + '\n' + `"""${text}"""`);
   return parts.join('\n\n---\n\n');
 };
 
@@ -200,13 +207,13 @@ const getProxyAgent = (proxyUrl) => {
   return agent;
 };
 
-const doCall = async ({ baseUrl, key, model, proxyUrl, text, article }) => {
+const doCall = async ({ baseUrl, key, model, proxyUrl, text, article, replyTo }) => {
   const url = `${baseUrl}/chat/completions`;
   const body = {
     model,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: buildUserPrompt(text, article) }
+      { role: 'user', content: buildUserPrompt(text, article, replyTo) }
     ],
     temperature: 0,
     max_tokens: 300,
@@ -225,10 +232,9 @@ const doCall = async ({ baseUrl, key, model, proxyUrl, text, article }) => {
   return resp.data?.choices?.[0]?.message?.content || '';
 };
 
-// 用当前生效配置发起一次审核请求
-const callSlot = (slot, text, article) => {
+const callSlot = (slot, text, article, replyTo) => {
   const cfg = getConfig();
-  return doCall({ baseUrl: cfg.baseUrl, key: slot.key, model: slot.model, proxyUrl: cfg.proxy, text, article });
+  return doCall({ baseUrl: cfg.baseUrl, key: slot.key, model: slot.model, proxyUrl: cfg.proxy, text, article, replyTo });
 };
 
 // 出于安全只展示 key 前 6 字符 + 末 4 字符,中间用 *** 代替
@@ -261,7 +267,7 @@ exports.moderateComment = async (text, opts = {}) => {
   slot.q.dayWindow.push(now);
 
   try {
-    const raw = await callSlot(slot, text, opts.article);
+    const raw = await callSlot(slot, text, opts.article, opts.replyTo);
     const verdict = extractJson(raw);
     if (!verdict) {
       console.warn('[aiModeration] unparseable output', {

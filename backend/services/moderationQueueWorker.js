@@ -19,8 +19,14 @@ const tick = async () => {
       if (!next) break;
       // 带上相关文章上下文,让模型能判断评论是否离题
       if (!next.populated('post')) await next.populate('post', 'title content');
+      // 回复语境:被回复的评论也喂给模型
+      let replyToCtx = null;
+      if (next.replyTo) {
+        await next.populate('replyTo', 'content');
+        replyToCtx = { content: next.replyTo.content };
+      }
 
-      const verdict = await moderateComment(next.content, { article: next.post ? { title: next.post.title, content: next.post.content } : null });
+      const verdict = await moderateComment(next.content, { article: next.post ? { title: next.post.title, content: next.post.content } : null, replyTo: replyToCtx });
       // pending 分两种:quota=true 是配额满,不计数,退出等配额恢复;
       // retryable=true 是真实异常(调用失败/输出格式异常),计数,超上限转人工兜底
       if (verdict.status === 'pending') {

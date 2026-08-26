@@ -58,6 +58,8 @@ const PostPage = () => {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [replyTo, setReplyTo] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [editingId, setEditingId] = useState(null); // 管理员编辑评论中
+  const [editText, setEditText] = useState('');
   const [postLikeBusy, setPostLikeBusy] = useState(false);
   const [commentLikeBusy, setCommentLikeBusy] = useState({});
   const [showOriginal, setShowOriginal] = useState({}); // 被 AI 润色的评论:展开看原评论
@@ -271,120 +273,183 @@ const PostPage = () => {
     }
   };
 
-  const renderComments = (parentId = null) => {
-    const filtered = comments.filter((c) => c.parentComment === parentId);
-    if (filtered.length === 0) return null;
+  const startEdit = (comment) => {
+    setEditingId(comment._id);
+    setEditText(comment.content);
+  };
+  const handleEditSubmit = async (commentId) => {
+    if (!editText.trim()) return;
+    try {
+      const res = await commentsAPI.updateComment(commentId, { content: editText });
+      setComments((prev) => prev.map((c) => (c._id === commentId ? res.data.data : c)));
+      setEditingId(null);
+      setEditText('');
+    } catch (err) {
+      alert(err.response?.data?.message || t('post.editFail'));
+    }
+  };
+
+  const renderCommentCard = (comment) => {
+    const liked = !!(userIdStr && comment.likes?.some((l) => String(l) === userIdStr));
+    const count = comment.likes?.length || 0;
+    const isOwner = !!userIdStr && comment.author?._id && String(comment.author._id) === userIdStr;
+    const replyToName = comment.replyTo?.name || comment.replyTo?.username;
     return (
-      <div className="space-y-4">
-        {filtered.map((comment) => {
-          const liked = !!(userIdStr && comment.likes?.some((l) => String(l) === userIdStr));
-          const count = comment.likes?.length || 0;
-          return (
-            <div key={comment._id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
-              <div className="flex items-start gap-3 mb-3">
-                <Avatar user={comment.author} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-neutral-900 dark:text-white">{comment.author?.name || comment.author?.username}</span>
-                    {comment.author?.role === 'admin' && (
-                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">[admin]</span>
-                    )}
-                    <span className="text-xs text-neutral-500 dark:text-neutral-400">{formatDate(comment.createdAt)}</span>
-                  </div>
-                  <div className="mt-2 prose prose-sm prose-neutral dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
-                    <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
-                      {trComments[comment._id] || comment.content}
-                    </ReactMarkdown>
-                  </div>
-                  {comment.isRewritten && (
-                    <div className="mt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowOriginal((m) => ({ ...m, [comment._id]: !m[comment._id] }))}
-                        className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
-                      >
-                        <FaInfoCircle /> {t('post.rewritten')}
-                        {showOriginal[comment._id] ? t('post.hideOriginal') : t('post.showOriginal')}
-                      </button>
-                      {showOriginal[comment._id] && (
-                        <blockquote className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400 border-l-2 border-neutral-300 dark:border-neutral-700 pl-2">
-                          {comment.originalContent}
-                        </blockquote>
-                      )}
-                    </div>
-                  )}
-                  <div className="mt-3 flex items-center gap-4 text-xs">
-                    <button
-                      onClick={() => handleLikeComment(comment._id)}
-                      disabled={!!commentLikeBusy[comment._id]}
-                      className={`inline-flex items-center gap-1.5 font-medium transition-colors ${
-                        liked
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'
-                      }`}
-                    >
-                      {liked ? <FaHeart /> : <FaRegHeart />} {count}
-                    </button>
-                    <button
-onClick={() => {
-                        if (!user) {
-                          navigate('/login', { state: { from: `/posts/${id}` } });
-                          return;
-                        }
-                        setReplyTo(replyTo === comment._id ? null : comment._id);
-                      }}
-                      className="inline-flex items-center gap-1.5 font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors"
-                    >
-                      <FaComment /> {t('post.reply')}
-                    </button>
-                  </div>
-
-                  {replyTo === comment._id && (
-                    <form onSubmit={(e) => handleReplySubmit(e, comment._id)} className="mt-4 space-y-3">
-                      <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: 'auto', width: 1, height: 1, overflow: 'hidden' }}>
-                        <label htmlFor={`hp_website_reply_${comment._id}`}>{t('post.hpWebsite')}</label>
-                        <input
-                          type="text"
-                          id={`hp_website_reply_${comment._id}`}
-                          name="website"
-                          tabIndex={-1}
-                          autoComplete="off"
-                          value={hpReply}
-                          onChange={(e) => setHpReply(e.target.value)}
-                        />
-                      </div>
-                      <textarea
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder={t('post.replyPlaceholder', { name: comment.author?.name || comment.author?.username })}
-                        className="input-field min-h-24 resize-y"
-                        rows={3}
-                        maxLength={isAdmin ? undefined : COMMENT_MAX}
-                      />
-                      <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-                        <span>{isAdmin ? replyText.length : `${replyText.length}/${COMMENT_MAX}`}</span>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <TurnstileWidget
-                          onSuccess={setTurnstileToken}
-                          onError={() => setTurnstileToken('')}
-                          onExpire={() => setTurnstileToken('')}
-                        />
-                        <div className="flex gap-2">
-                          <button type="button" onClick={() => setReplyTo(null)} className="btn btn-secondary">{t('post.cancel')}</button>
-                          <button type="submit" disabled={!replyText.trim() || (!isAdmin && replyText.length > COMMENT_MAX)} className="btn btn-primary">{t('post.send')}</button>
-                        </div>
-                      </div>
-                    </form>
-                  )}
-
-                  {comments.some((c) => c.parentComment === comment._id) && (
-                    <div className="mt-4 pl-4 border-l-2 border-neutral-200 dark:border-neutral-700">
-                      {renderComments(comment._id)}
-                    </div>
-                  )}
+      <div key={comment._id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
+        <div className="flex items-start gap-3 mb-3">
+          <Avatar user={comment.author} size="sm" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-neutral-900 dark:text-white">{comment.author?.name || comment.author?.username}</span>
+              {comment.author?.role === 'admin' && (
+                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">[admin]</span>
+              )}
+              {replyToName && (
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">回复 @{replyToName}</span>
+              )}
+              <span className="text-xs text-neutral-500 dark:text-neutral-400">{formatDate(comment.createdAt)}</span>
+            </div>
+            {editingId === comment._id ? (
+              <div className="mt-2 space-y-2">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="input-field min-h-24 resize-y"
+                  rows={3}
+                  maxLength={isAdmin ? undefined : COMMENT_MAX}
+                />
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditingId(null)} className="btn btn-secondary">{t('post.cancel')}</button>
+                  <button type="button" onClick={() => handleEditSubmit(comment._id)} className="btn btn-primary">{t('post.send')}</button>
                 </div>
               </div>
+            ) : (
+              <>
+                <div className="mt-2 prose prose-sm prose-neutral dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
+                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+                    {trComments[comment._id] || comment.content}
+                  </ReactMarkdown>
+                </div>
+                {comment.isRewritten && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowOriginal((m) => ({ ...m, [comment._id]: !m[comment._id] }))}
+                      className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                    >
+                      <FaInfoCircle /> {t('post.rewritten')}
+                      {showOriginal[comment._id] ? t('post.hideOriginal') : t('post.showOriginal')}
+                    </button>
+                    {showOriginal[comment._id] && (
+                      <blockquote className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400 border-l-2 border-neutral-300 dark:border-neutral-700 pl-2">
+                        {comment.originalContent}
+                      </blockquote>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            <div className="mt-3 flex items-center gap-4 text-xs">
+              <button
+                onClick={() => handleLikeComment(comment._id)}
+                disabled={!!commentLikeBusy[comment._id]}
+                className={`inline-flex items-center gap-1.5 font-medium transition-colors ${
+                  liked
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'
+                }`}
+              >
+                {liked ? <FaHeart /> : <FaRegHeart />} {count}
+              </button>
+              <button
+                onClick={() => {
+                  if (!user) {
+                    navigate('/login', { state: { from: `/posts/${id}` } });
+                    return;
+                  }
+                  setReplyTo(replyTo === comment._id ? null : comment._id);
+                }}
+                className="inline-flex items-center gap-1.5 font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors"
+              >
+                <FaComment /> {t('post.reply')}
+              </button>
+              {isOwner && editingId !== comment._id && (
+                <button
+                  onClick={() => startEdit(comment)}
+                  className="inline-flex items-center gap-1.5 font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors"
+                >
+                  <FaEdit /> {t('post.edit')}
+                </button>
+              )}
+            </div>
+            {replyTo === comment._id && (
+              <form onSubmit={(e) => handleReplySubmit(e, comment._id)} className="mt-4 space-y-3">
+                <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: 'auto', width: 1, height: 1, overflow: 'hidden' }}>
+                  <label htmlFor={`hp_website_reply_${comment._id}`}>{t('post.hpWebsite')}</label>
+                  <input
+                    type="text"
+                    id={`hp_website_reply_${comment._id}`}
+                    name="website"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={hpReply}
+                    onChange={(e) => setHpReply(e.target.value)}
+                  />
+                </div>
+                <textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder={t('post.replyPlaceholder', { name: comment.author?.name || comment.author?.username })}
+                  className="input-field min-h-24 resize-y"
+                  rows={3}
+                  maxLength={isAdmin ? undefined : COMMENT_MAX}
+                />
+                <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
+                  <span>{isAdmin ? replyText.length : `${replyText.length}/${COMMENT_MAX}`}</span>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <TurnstileWidget
+                    onSuccess={setTurnstileToken}
+                    onError={() => setTurnstileToken('')}
+                    onExpire={() => setTurnstileToken('')}
+                  />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setReplyTo(null)} className="btn btn-secondary">{t('post.cancel')}</button>
+                    <button type="submit" disabled={!replyText.trim() || (!isAdmin && replyText.length > COMMENT_MAX)} className="btn btn-primary">{t('post.send')}</button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderComments = () => {
+    const byParent = {};
+    comments.forEach((c) => {
+      const key = c.parentComment || '';
+      (byParent[key] = byParent[key] || []).push(c);
+    });
+    const byTime = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
+    const roots = (byParent[''] || []).slice().sort(byTime);
+    return (
+      <div className="space-y-4">
+        {roots.map((comment) => {
+          const direct = (byParent[comment._id] || []).slice().sort(byTime);
+          // 三层+”的回复(孙)提升到与回复同层渲染 — 回复永不嵌套超过一层
+          const promoted = [];
+          direct.forEach((d) => promoted.push(...(byParent[d._id] || [])));
+          const children = [...direct, ...promoted].sort(byTime);
+          return (
+            <div key={comment._id}>
+              {renderCommentCard(comment)}
+              {children.length > 0 && (
+                <div className="mt-4 pl-4 lg:pl-6 border-l-2 border-neutral-200 dark:border-neutral-700 space-y-4">
+                  {children.map((c) => renderCommentCard(c))}
+                </div>
+              )}
             </div>
           );
         })}

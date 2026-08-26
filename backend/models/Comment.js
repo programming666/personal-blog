@@ -38,7 +38,9 @@ const CommentSchema = new mongoose.Schema({
   isRewritten: { type: Boolean, default: false, index: true },
   originalContent: { type: String, default: '' },
   // AI 自动重试计数:输出异常/调用失败时由 moderationQueueWorker 递增,超上限转人工
-  moderationRetries: { type: Number, default: 0 }
+  moderationRetries: { type: Number, default: 0 },
+  // 真实被回复的评论:parentComment 强制扁平为一层评论;replyTo 保留用户实际点"回复"的那条,供 AI 审阅与前端 @ 展示
+  replyTo: { type: mongoose.Schema.Types.ObjectId, ref: 'Comment', default: null }
 }, {
   timestamps: true
 });

@@ -20,7 +20,7 @@ exports.createComment = async (req, res) => {
     if (req.user.role === 'admin') {
       verdict = { status: 'approved', reason: 'admin bypass' };
     } else {
-      verdict = await moderateComment(content);
+      verdict = await moderateComment(content, { article: { title: targetPost.title, content: targetPost.content } });
     }
 
     const comment = await Comment.create({

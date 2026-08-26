@@ -32,7 +32,7 @@ const SYSTEM_PROMPT = `你是博客评论审核助手。本博客只允许真人
    - 对正文几乎不涉及具体细节的泛泛总结/复述
 
 2. **机器人/灌水内容** — 典型特征:
-   - 与文章主题完全无关
+   - 与文章主题完全无关(请对照用户消息中提供的「相关文章」段落;若未提供则以常识判断)
    - 无意义字符或乱码、随机词堆叠
    - 极短且无信息量的赞美("好文章"、"学到了"、"支持一下"、"沙发"、"顶")作为唯一内容
    - 机械重复、刷屏式语句
@@ -53,7 +53,22 @@ const SYSTEM_PROMPT = `你是博客评论审核助手。本博客只允许真人
 
 [再次提醒] 只输出一行 JSON: {"allow": bool, "reason": "<=30字,被拒时必须指明AI/机器人/推广哪一类"}`;
 
-const buildUserPrompt = (text) => `待审核评论:\n"""${text}"""`;
+// 正文上下文上限 — 传给模型的文章截断长度(够判断离题即可,避免 token 浪费)
+const ARTICLE_CONTEXT_LIMIT = 4000;
+
+const buildUserPrompt = (text, article) => {
+  const parts = [];
+  if (article && (article.title || article.content)) {
+    const title = String(article.title || '').trim() || '未命名文章';
+    const content = String(article.content || '').trim();
+    const excerpt = content.length > ARTICLE_CONTEXT_LIMIT
+      ? content.slice(0, ARTICLE_CONTEXT_LIMIT) + '\n…(正文过长已截断)'
+      : content;
+    parts.push(`相关文章(用于判断评论是否离题):\n《${title}》\n${excerpt}`);
+  }
+  parts.push(`待审核评论:\n"""${text}"""`);
+  return parts.join('\n\n---\n\n');
+};
 
 // ---------- 配额追踪: Map<`${keyIdx}:${model}`, { minuteWindow, dayWindow }> ----------
 const quotas = new Map();
@@ -166,14 +181,13 @@ const getProxyAgent = (proxyUrl) => {
   return agent;
 };
 
-// 底层 OpenAI 兼容调用
-const doCall = async ({ baseUrl, key, model, proxyUrl, text }) => {
+const doCall = async ({ baseUrl, key, model, proxyUrl, text, article }) => {
   const url = `${baseUrl}/chat/completions`;
   const body = {
     model,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: buildUserPrompt(text) }
+      { role: 'user', content: buildUserPrompt(text, article) }
     ],
     temperature: 0,
     max_tokens: 200,
@@ -194,9 +208,9 @@ const doCall = async ({ baseUrl, key, model, proxyUrl, text }) => {
 };
 
 // 用当前生效配置发起一次审核请求
-const callSlot = (slot, text) => {
+const callSlot = (slot, text, article) => {
   const cfg = getConfig();
-  return doCall({ baseUrl: cfg.baseUrl, key: slot.key, model: slot.model, proxyUrl: cfg.proxy, text });
+  return doCall({ baseUrl: cfg.baseUrl, key: slot.key, model: slot.model, proxyUrl: cfg.proxy, text, article });
 };
 
 // 出于安全只展示 key 前 6 字符 + 末 4 字符,中间用 *** 代替
@@ -208,7 +222,7 @@ const maskKey = (k) => {
 
 // returns { status: 'approved'|'rejected'|'pending', reason?, model?, keyIdx? }
 // 'pending' 表示 AI 暂时不可用(配额满 / 调用失败 / 输出无法解析),由 queue worker 之后重试
-exports.moderateComment = async (text) => {
+exports.moderateComment = async (text, opts = {}) => {
   const cfg = getConfig();
   if (!cfg.enabled || cfg.keys.length === 0) {
     // 未启用/未配 key:审核停用,默认放行(但其他所有防御层仍生效)
@@ -224,7 +238,7 @@ exports.moderateComment = async (text) => {
   slot.q.dayWindow.push(now);
 
   try {
-    const raw = await callSlot(slot, text);
+    const raw = await callSlot(slot, text, opts.article);
     const verdict = extractJson(raw);
     if (!verdict) {
       console.warn('[aiModeration] unparseable output', {

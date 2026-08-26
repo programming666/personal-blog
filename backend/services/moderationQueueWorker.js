@@ -16,8 +16,10 @@ const tick = async () => {
     while (processed < BATCH_MAX && hasCapacity()) {
       const next = await Comment.findOne({ moderationStatus: 'pending' }).sort({ createdAt: 1 });
       if (!next) break;
+      // 带上相关文章上下文,让模型能判断评论是否离题
+      if (!next.populated('post')) await next.populate('post', 'title content');
 
-      const verdict = await moderateComment(next.content);
+      const verdict = await moderateComment(next.content, { article: next.post ? { title: next.post.title, content: next.post.content } : null });
       // 如果配额仍然没恢复,verdict 还是 pending — 不要再 save(无变化),直接退出等下一轮
       if (verdict.status === 'pending') break;
 

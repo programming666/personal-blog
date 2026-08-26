@@ -76,6 +76,9 @@ const PostPage = () => {
       setLoading(true);
       const response = await postsAPI.getPost(id);
       setPost(response.data.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching post:', err);
       setError(t('post.errorLoad'));
     } finally {
       setLoading(false);

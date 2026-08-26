@@ -1,9 +1,10 @@
 // @ts-nocheck
 import { Link, useLocation } from 'react-router-dom';
-import { FaHome, FaSignInAlt, FaBullhorn, FaUserCircle, FaMoon, FaSun, FaSignOutAlt, FaBlog } from 'react-icons/fa';
+import { FaHome, FaSignInAlt, FaBullhorn, FaUserCircle, FaMoon, FaSun, FaSignOutAlt, FaBlog, FaDesktop, FaGlobe } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
+import { t, getLang, switchLang } from '../i18n';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -16,10 +17,11 @@ const navLinkClass = (active) =>
 
 const Navbar = () => {
   const { user, logout } = useAuth();
-  const { isDarkMode, toggleTheme } = useTheme();
+  const { isDarkMode, mode, toggleTheme } = useTheme();
   const { logoPath } = useSettings();
   const { pathname } = useLocation();
   const isAdmin = user?.role === 'admin';
+  const lang = getLang();
 
   const isActive = (path) => (path === '/' ? pathname === '/' : pathname.startsWith(path));
   const logoUrl = logoPath ? `${API_BASE}/${logoPath}` : null;
@@ -48,35 +50,47 @@ const Navbar = () => {
 
           <div className="hidden md:flex items-center gap-1">
             <Link to="/" className={navLinkClass(isActive('/'))}>
-              <FaHome /> 首页
+              <FaHome /> {t('nav.home')}
             </Link>
             <Link to="/announcements" className={navLinkClass(isActive('/announcements'))}>
-              <FaBullhorn /> 公告
+              <FaBullhorn /> {t('nav.announcements')}
             </Link>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* 语言切换:中 ↔ EN */}
+            <button
+              type="button"
+              onClick={() => switchLang(lang === 'zh' ? 'en' : 'zh')}
+              aria-label="Switch language"
+              title={lang === 'zh' ? 'English' : '中文'}
+              className="flex items-center gap-1 px-2.5 py-2 rounded-lg text-sm font-medium text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-900 transition-colors"
+            >
+              <FaGlobe />
+              {lang === 'zh' ? 'EN' : '中'}
+            </button>
+
             <button
               type="button"
               onClick={toggleTheme}
-              aria-label="切换主题"
+              aria-label={t('nav.theme')}
               className="p-2 rounded-lg text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-900 transition-colors"
             >
-              {isDarkMode ? <FaSun /> : <FaMoon />}
+              {mode === 'system' ? <FaDesktop /> : isDarkMode ? <FaSun /> : <FaMoon />}
             </button>
 
             {user ? (
               <>
                 {isAdmin && (
                   <Link to="/admin" className={navLinkClass(isActive('/admin'))}>
-                    <FaUserCircle /> 管理后台
+                    <FaUserCircle /> {t('nav.admin')}
                   </Link>
                 )}
                 <button
                   onClick={logout}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-900 transition-colors"
                 >
-                  <FaSignOutAlt /> 退出
+                  <FaSignOutAlt /> {t('nav.logout')}
                 </button>
               </>
             ) : (
@@ -84,7 +98,7 @@ const Navbar = () => {
                 to="/login"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-neutral-900 text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 transition-colors"
               >
-                <FaSignInAlt /> 登录
+                <FaSignInAlt /> {t('nav.login')}
               </Link>
             )}
           </div>

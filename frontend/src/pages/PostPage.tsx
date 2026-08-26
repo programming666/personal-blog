@@ -5,9 +5,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+// katex CSS 由 chunk 自行带出(路由级分包后只随文章页加载)
 import 'katex/dist/katex.min.css';
 import 'highlight.js/styles/github-dark.css';
-import hljs from 'highlight.js';
+import hljs from 'highlight.js/lib/common'; // 仅 35 种常用语言,替代全量 196 种
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { FaEdit, FaTrash, FaEye, FaComment, FaArrowLeft, FaUser, FaCalendarAlt, FaHeart, FaRegHeart } from 'react-icons/fa';

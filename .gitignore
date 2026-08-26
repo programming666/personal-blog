@@ -140,4 +140,5 @@ dist
 
 CLAUDE.md
 .claude/
-.vscode/
+.vscode/.playwright-mcp/
+.playwright-mcp/

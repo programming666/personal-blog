@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const passport = require('passport');
@@ -35,8 +36,11 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
+// 文本响应 gzip 压缩(HTML/JS/CSS/JSON 大幅瘦身,对移动端 LCP 显著)
+app.use(compression());
 // 静态文件服务
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// 上传文件(图片)文件名带时间戳、内容不可变 → 长缓存 30d
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '30d', immutable: true }));
 // 数据库连接
 require('./config/db')();
 // 初始化 Passport
@@ -54,12 +58,26 @@ app.use('/api/settings', require('./routes/settings.routes'));
 
 // 仅在 SERVE_FRONTEND=true 时,把前端 dist/ 也由 Express 服务
 if (process.env.SERVE_FRONTEND === 'true') {
-  const path = require('path');
+  const fs = require('fs');
   const distPath = path.resolve(__dirname, '..', 'frontend', 'dist');
-  // 静态资源 — 加 7d 缓存
-  app.use(express.static(distPath, { maxAge: '7d', index: false }));
-  // SPA fallback — 所有非 /api、非 /uploads 的请求都返回 index.html
+  // 哈希文件名(内容不变)长缓存 1 年 immutable;其余 7d
+  app.use(express.static(distPath, {
+    index: false,
+    setHeaders(res, filePath) {
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=604800');
+      }
+    }
+  }));
+  // SPA fallback — 仅对不存在对应静态文件的非 /api、非 /uploads 路径返回 index.html;
+  // 缺失的哈希资源(asset 404)必须如实 404,否则会被缓存成 HTML 毒化 CDN/浏览器
   app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
+    const candidate = path.join(distPath, req.path);
+    if (req.path !== '/' && (path.extname(req.path) !== '' || fs.existsSync(candidate))) {
+      return res.status(404).end();
+    }
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }

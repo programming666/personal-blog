@@ -39,8 +39,8 @@ app.use(cookieParser());
 // 文本响应 gzip 压缩(HTML/JS/CSS/JSON 大幅瘦身,对移动端 LCP 显著)
 app.use(compression());
 // 静态文件服务
-// 上传文件(图片)文件名带时间戳、内容不可变 → 长缓存 30d
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '30d', immutable: true }));
+// 上传文件(图片)文件名带时间戳、内容不可变 → 长缓存 1 年(满足 efficient cache lifetime)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '365d', immutable: true }));
 // 数据库连接
 require('./config/db')();
 // 初始化 Passport

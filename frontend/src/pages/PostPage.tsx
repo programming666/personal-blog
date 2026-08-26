@@ -293,7 +293,7 @@ const PostPage = () => {
     const liked = !!(userIdStr && comment.likes?.some((l) => String(l) === userIdStr));
     const count = comment.likes?.length || 0;
     const isOwner = !!userIdStr && comment.author?._id && String(comment.author._id) === userIdStr;
-    const replyToName = comment.replyTo?.name || comment.replyTo?.username;
+    const replyToName = comment.replyTo?.name || comment.replyTo?.username || comment.replyTo?.author?.name || comment.replyTo?.author?.username;
     return (
       <div key={comment._id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
         <div className="flex items-start gap-3 mb-3">

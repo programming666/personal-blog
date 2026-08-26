@@ -74,7 +74,8 @@ exports.validateCommentBody = (req, res, next) => {
   if (content.length === 0) {
     return res.status(400).json({ success: false, message: '评论内容不能为空' });
   }
-  if (content.length > 100) {
+  // 管理员豁免 100 字上限(其余格式过滤照常)
+  if (content.length > 100 && req.user?.role !== 'admin') {
     return res.status(400).json({ success: false, message: '评论不能超过 100 个字符' });
   }
   if (CONTROL_CHARS.test(content)) {

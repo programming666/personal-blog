@@ -48,6 +48,7 @@ const PostPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin'; // 管理员豁免 100 字上限
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -192,7 +193,7 @@ const PostPage = () => {
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
     if (!commentText.trim() || !user) return;
-    if (commentText.length > COMMENT_MAX) return;
+    if (!isAdmin && commentText.length > COMMENT_MAX) return;
     if (!turnstileToken) {
       alert(t('post.captcha'));
       return;
@@ -228,7 +229,7 @@ const PostPage = () => {
   const handleReplySubmit = async (e, parentCommentId) => {
     e.preventDefault();
     if (!replyText.trim() || !user) return;
-    if (replyText.length > COMMENT_MAX) return;
+    if (!isAdmin && replyText.length > COMMENT_MAX) return;
     if (!turnstileToken) {
       alert(t('post.captcha'));
       return;
@@ -358,10 +359,10 @@ onClick={() => {
                         placeholder={t('post.replyPlaceholder', { name: comment.author?.name || comment.author?.username })}
                         className="input-field min-h-24 resize-y"
                         rows={3}
-                        maxLength={COMMENT_MAX}
+                        maxLength={isAdmin ? undefined : COMMENT_MAX}
                       />
                       <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-                        <span>{replyText.length}/{COMMENT_MAX}</span>
+                        <span>{isAdmin ? replyText.length : `${replyText.length}/${COMMENT_MAX}`}</span>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <TurnstileWidget
@@ -371,7 +372,7 @@ onClick={() => {
                         />
                         <div className="flex gap-2">
                           <button type="button" onClick={() => setReplyTo(null)} className="btn btn-secondary">{t('post.cancel')}</button>
-                          <button type="submit" disabled={!replyText.trim() || replyText.length > COMMENT_MAX} className="btn btn-primary">{t('post.send')}</button>
+                          <button type="submit" disabled={!replyText.trim() || (!isAdmin && replyText.length > COMMENT_MAX)} className="btn btn-primary">{t('post.send')}</button>
                         </div>
                       </div>
                     </form>
@@ -418,8 +419,7 @@ onClick={() => {
     );
   }
 
-  const isAdmin = user?.role === 'admin';
-  const commentOver = commentText.length > COMMENT_MAX;
+  const commentOver = !isAdmin && commentText.length > COMMENT_MAX;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
@@ -539,14 +539,14 @@ onClick={() => {
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder={t('post.placeholder', { max: COMMENT_MAX })}
+                  placeholder={isAdmin ? t('post.placeholderAdmin') : t('post.placeholder', { max: COMMENT_MAX })}
                   className="input-field min-h-28 resize-y"
                   rows={4}
-                  maxLength={COMMENT_MAX}
+                  maxLength={isAdmin ? undefined : COMMENT_MAX}
                 />
                 <div className="flex items-center justify-between text-xs">
                   <span className={commentOver ? 'text-red-600 dark:text-red-400' : 'text-neutral-500 dark:text-neutral-400'}>
-                    {commentText.length}/{COMMENT_MAX}
+                    {isAdmin ? commentText.length : `${commentText.length}/${COMMENT_MAX}`}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">

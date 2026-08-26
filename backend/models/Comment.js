@@ -36,7 +36,9 @@ const CommentSchema = new mongoose.Schema({
   moderationModel: { type: String, default: '' },
   // AI 语气重写: isRewritten=true 时 content 为润色版,originalContent 保留原评论(仅后台/管理员可见)
   isRewritten: { type: Boolean, default: false, index: true },
-  originalContent: { type: String, default: '' }
+  originalContent: { type: String, default: '' },
+  // AI 自动重试计数:输出异常/调用失败时由 moderationQueueWorker 递增,超上限转人工
+  moderationRetries: { type: Number, default: 0 }
 }, {
   timestamps: true
 });

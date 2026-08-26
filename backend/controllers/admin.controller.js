@@ -418,6 +418,7 @@ exports.moderateCommentManual = async (req, res) => {
     comment.moderationStatus = status;
     comment.moderationReason = (reason || '管理员手动审核').slice(0, 200);
     comment.moderationModel = 'manual';
+    comment.moderationRetries = 0;
     await comment.save();
     res.status(200).json({ success: true, data: comment });
   } catch (error) {

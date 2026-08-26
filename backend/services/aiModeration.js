@@ -242,13 +242,18 @@ const maskKey = (k) => {
 // 'pending' 表示 AI 暂时不可用(配额满 / 调用失败 / 输出无法解析),由 queue worker 之后重试
 exports.moderateComment = async (text, opts = {}) => {
   const cfg = getConfig();
-  if (!cfg.enabled || cfg.keys.length === 0) {
-    // 未启用/未配 key:审核停用,默认放行(但其他所有防御层仍生效)
-    return { status: 'approved', reason: 'moderation disabled (no AI configured)' };
+  if (!cfg.enabled) {
+    // 审核整体停用(用户主动关闭 AI 审核):默认放行(但其他所有防御层仍生效)
+    return { status: 'approved', reason: 'moderation disabled (AI_ENABLED=false)' };
+  }
+  if (cfg.keys.length === 0 || cfg.models.length === 0) {
+    // AI 审核已启用但配置不完整:绝不能未审批直接放行 —— 挂 pending 进队列,
+    // 等管理员在面板配好 baseURL/Key/模型后,队列 worker 会自动重审通过
+    return { status: 'pending', reason: 'AI 审核已启用但缺少 API Key/模型配置,等待管理员配置', retryable: true };
   }
   const slot = pickSlot();
   if (!slot) {
-    return { status: 'pending', reason: '审核 API 当前已满载' };
+    return { status: 'pending', reason: '审核 API 当前已满载', quota: true };
   }
   // 先扣配额,无论调用结果 — 避免失败时无限消耗
   const now = Date.now();
@@ -262,7 +267,7 @@ exports.moderateComment = async (text, opts = {}) => {
       console.warn('[aiModeration] unparseable output', {
         keyIdx: slot.keyIdx, key: maskKey(slot.key), model: slot.model, rawOutput: raw
       });
-      return { status: 'pending', reason: 'AI 输出格式异常', model: slot.model, keyIdx: slot.keyIdx };
+      return { status: 'pending', reason: 'AI 输出格式异常', model: slot.model, keyIdx: slot.keyIdx, retryable: true };
     }
     return { status: verdict.allow ? 'approved' : 'rejected', reason: verdict.reason, model: slot.model, keyIdx: slot.keyIdx, tone: verdict.tone, rewritten: verdict.rewritten };
   } catch (err) {
@@ -271,7 +276,7 @@ exports.moderateComment = async (text, opts = {}) => {
     console.error('[aiModeration] call failed', {
       keyIdx: slot.keyIdx, key: maskKey(slot.key), model: slot.model, code, detail
     });
-    return { status: 'pending', reason: `调用失败(${code || 'ERR'}): ${String(detail).slice(0, 100)}`, model: slot.model, keyIdx: slot.keyIdx };
+    return { status: 'pending', reason: `调用失败(${code || 'ERR'}): ${String(detail).slice(0, 100)}`, model: slot.model, keyIdx: slot.keyIdx, retryable: true };
   }
 };
 
@@ -302,6 +307,8 @@ exports.applyVerdictToComment = (comment, verdict = {}, originalText = '') => {
   comment.moderationStatus = verdict.status;
   comment.moderationReason = verdict.reason || '';
   comment.moderationModel = verdict.model || '';
+  // 拿到终态裁决(AI 或管理员)后,重试计数清零
+  comment.moderationRetries = 0;
 
   // 先复位,再按新裁决决定是否重写(re-moderation 时旧的重写标记必须清掉)
   comment.isRewritten = false;

@@ -49,7 +49,7 @@ exports.createComment = async (req, res) => {
       return res.status(202).json({
         success: true,
         moderationStatus: 'pending',
-        message: '评论已提交，正在审核中，通过后将公开显示',
+        message: '评论已进入审核队列(AI 自动重试中),通过后将公开显示',
         data: comment
       });
     }

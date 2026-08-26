@@ -63,6 +63,7 @@ async function callOnce({ baseUrl, key, model, proxyUrl, texts, target }) {
   const agent = getProxyAgent(proxyUrl);
   const resp = await axios.post(url, body, {
     timeout: REQUEST_TIMEOUT,
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     ...(agent ? { httpAgent: agent, httpsAgent: agent, proxy: false } : {}),
   });
   const raw = resp.data?.choices?.[0]?.message?.content || '';

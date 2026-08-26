@@ -48,6 +48,29 @@ const buildSystemPrompt = (target) =>
 [严格输出格式] 只输出一行 JSON,结构: {"translations": ["...", "..."]}
 禁止任何其他文字、解释、markdown 包裹,只要这一行 JSON。`;
 
+// 从模型输出中提取第一个完整 JSON 对象(容忍 thinking 前缀 / markdown 代码块包裹)
+function extractJson(s) {
+  const start = s.indexOf('{');
+  if (start === -1) throw new Error('模型中未包含 JSON 输出');
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') inStr = true;
+    else if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) return s.slice(start, i + 1);
+    }
+  }
+  throw new Error('JSON 括号不匹配');
+}
+
 async function callOnce({ baseUrl, key, model, proxyUrl, texts, target }) {
   const url = baseUrl.replace(/\/+$/, '') + '/chat/completions';
   const body = {
@@ -67,7 +90,9 @@ async function callOnce({ baseUrl, key, model, proxyUrl, texts, target }) {
     ...(agent ? { httpAgent: agent, httpsAgent: agent, proxy: false } : {}),
   });
   const raw = resp.data?.choices?.[0]?.message?.content || '';
-  const parsed = JSON.parse(raw);
+  // MiniMax 等模型可能在 JSON 前输出 thinking/说明前缀:扫描平衡括号取第一个完整 JSON 对象
+  const sliced = extractJson(raw);
+  const parsed = JSON.parse(sliced);
   if (!Array.isArray(parsed.translations) || parsed.translations.length !== texts.length) {
     throw new Error('翻译输出条数与输入不一致');
   }

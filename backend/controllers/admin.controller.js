@@ -3,7 +3,8 @@ const Post = require('../models/Post');
 const Comment = require('../models/Comment');
 const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
-const { getQuotaSnapshot, moderateComment } = require('../services/aiModeration');
+const { getQuotaSnapshot, moderateComment, testConnection } = require('../services/aiModeration');
+const { getConfig, saveConfig, resetConfig, hasDbOverride, splitCsv } = require('../services/aiConfig');
 const { tickNow } = require('../services/moderationQueueWorker');
 
 const EMAIL_RE = /^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$/;
@@ -280,7 +281,7 @@ exports.getAllUsers = async (req, res) => {
 exports.getAllPosts = async (req, res) => {
   try {
     const posts = await Post.find({})
-      .populate('author', 'username name avatar')
+      .populate('author', 'username name avatar role')
       .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: posts.length, data: posts });
   } catch (error) {
@@ -291,7 +292,7 @@ exports.getAllPosts = async (req, res) => {
 exports.getAllComments = async (req, res) => {
   try {
     const comments = await Comment.find({})
-      .populate('author', 'username name avatar')
+      .populate('author', 'username name avatar role')
       .populate('post', 'title slug')
       .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: comments.length, data: comments });
@@ -374,7 +375,7 @@ exports.getStats = async (req, res) => {
       Comment.countDocuments(),
       Comment.countDocuments({ moderationStatus: 'pending' }),
       Comment.countDocuments({ moderationStatus: 'rejected' }),
-      Post.find({}).populate('author', 'username name').sort({ createdAt: -1 }).limit(5)
+      Post.find({}).populate('author', 'username name role').sort({ createdAt: -1 }).limit(5)
     ]);
     res.status(200).json({
       success: true,
@@ -518,6 +519,103 @@ exports.updateAdminProfile = async (req, res) => {
         avatar: user.avatar
       }
     });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ---------- AI 审核配置(OpenAI 兼容) ----------
+// 只读面板不返回完整 key,用脱敏值;保存/恢复/测试均写在 Setting 表或临时配置
+
+function maskSecret(k) {
+  if (!k) return '';
+  if (k.length <= 12) return `${k.slice(0, 2)}***${k.slice(-2)}`;
+  return `${k.slice(0, 6)}***${k.slice(-4)}`;
+}
+
+function maskProxy(p) {
+  if (!p) return '';
+  try {
+    const u = new URL(p);
+    if (u.password) u.password = '***';
+    if (u.username) u.username = u.username.slice(0, 2) + '***';
+    return u.toString();
+  } catch {
+    return '<set>';
+  }
+}
+
+exports.getAiConfig = async (req, res) => {
+  try {
+    const cfg = getConfig();
+    const db = await hasDbOverride();
+    res.status(200).json({
+      success: true,
+      data: {
+        source: db ? 'db' : 'env',
+        enabled: cfg.enabled,
+        baseUrl: cfg.baseUrl,
+        models: cfg.models,
+        keyCount: cfg.keys.length,
+        keys: cfg.keys.map(maskSecret),
+        proxy: cfg.proxy ? maskProxy(cfg.proxy) : ''
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.saveAiConfig = async (req, res) => {
+  try {
+    const { enabled, baseUrl, apiKeys, models, proxy } = req.body;
+    const patch = {};
+    if (typeof enabled === 'boolean') patch.enabled = enabled;
+    if (typeof baseUrl === 'string' && baseUrl.trim()) patch.baseUrl = baseUrl.trim();
+    if (typeof apiKeys === 'string') {
+      const keys = splitCsv(apiKeys);
+      if (keys.length) patch.keys = keys;
+    }
+    if (typeof models === 'string') {
+      const ms = splitCsv(models);
+      if (ms.length) patch.models = ms;
+    }
+    if (typeof proxy === 'string') patch.proxy = proxy.trim();
+    const cfg = await saveConfig(patch);
+    res.status(200).json({
+      success: true,
+      data: { enabled: cfg.enabled, baseUrl: cfg.baseUrl, models: cfg.models, keyCount: cfg.keys.length }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.resetAiConfig = async (req, res) => {
+  try {
+    const cfg = await resetConfig();
+    res.status(200).json({
+      success: true,
+      data: { source: 'env', enabled: cfg.enabled, baseUrl: cfg.baseUrl, models: cfg.models, keyCount: cfg.keys.length }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.testAiConfig = async (req, res) => {
+  try {
+    const cur = getConfig();
+    const { baseUrl, apiKeys, models, proxy } = req.body;
+    // 用表单值覆盖当前配置构造临时配置去测,不落库
+    const testCfg = {
+      baseUrl: typeof baseUrl === 'string' && baseUrl.trim() ? baseUrl.trim() : cur.baseUrl,
+      keys: typeof apiKeys === 'string' && apiKeys.trim() ? splitCsv(apiKeys) : cur.keys,
+      models: typeof models === 'string' && models.trim() ? splitCsv(models) : cur.models,
+      proxy: typeof proxy === 'string' && proxy.trim() ? proxy.trim() : cur.proxy
+    };
+    const result = await testConnection(testCfg);
+    res.status(200).json({ success: result.ok, ...result });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

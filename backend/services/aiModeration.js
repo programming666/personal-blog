@@ -1,67 +1,28 @@
-// Google AI Studio (Gemini) 评论审核服务
-// 支持多 key 轮询,(key, model) 各自 RPM=10 RPD=1500
-// 配额耗尽 / 调用失败 / 输出无法解析 时返回 'pending',由 queue worker 之后重试
-// 支持 SOCKS5 / HTTP 代理(GEMINI_PROXY 或 HTTPS_PROXY 环境变量)
+// =========================================================
+// OpenAI 兼容 评论审核服务
+// 请求任意 OpenAI 兼容的 /chat/completions 端点
+// (OpenAI / DeepSeek / Moonshot / OpenRouter / SiliconFlow / 本地 Ollama...),
+// 兼容写法与 Google AI Studio 原生 API 不同,其余逻辑(多 key 轮询、
+// RPM/RPD 配额滑动窗口、三态裁决、pending 重试队列)原样保留。
+// 配置来源: services/aiConfig — .env 默认 + 后台面板(DB)覆盖。
+// =========================================================
 const axios = require('axios');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const { getConfig } = require('./aiConfig');
 
-const MODELS = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
 const RPM_LIMIT = 10;
 const RPD_LIMIT = 1500;
 const minute = 60 * 1000;
 const day = 24 * 60 * minute;
 const REQUEST_TIMEOUT = 30000;
 
-const getKeys = () => {
-  const raw = process.env.GEMINI_API_KEYS || process.env.GOOGLE_AI_KEYS || '';
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-};
+// ---------- 审核 Prompt ----------
+// system:转给模型的系统指令(严格 JSON + 分类规则);user:待审评论
+const SYSTEM_PROMPT = `你是博客评论审核助手。本博客只允许真人原创、与正文相关的评论。请判断下面这条评论是否应被公开显示。
 
-// quota tracker: Map<`${keyIdx}:${model}`, { minuteWindow: number[], dayWindow: number[] }>
-const quotas = new Map();
-const getQ = (keyIdx, model) => {
-  const k = `${keyIdx}:${model}`;
-  let q = quotas.get(k);
-  if (!q) {
-    q = { minuteWindow: [], dayWindow: [] };
-    quotas.set(k, q);
-  }
-  return q;
-};
-const cleanQ = (q, now) => {
-  q.minuteWindow = q.minuteWindow.filter((t) => t > now - minute);
-  q.dayWindow = q.dayWindow.filter((t) => t > now - day);
-};
-
-// 找一个还有 RPM 且 RPD 最小的 slot — 均匀分散负载到各 key
-const pickSlot = () => {
-  const keys = getKeys();
-  if (keys.length === 0) return null;
-  const now = Date.now();
-  let best = null;
-  for (let i = 0; i < keys.length; i++) {
-    for (const model of MODELS) {
-      const q = getQ(i, model);
-      cleanQ(q, now);
-      if (q.minuteWindow.length >= RPM_LIMIT) continue;
-      if (q.dayWindow.length >= RPD_LIMIT) continue;
-      const score = q.dayWindow.length + q.minuteWindow.length * 0.01;
-      if (!best || score < best.score) {
-        best = { keyIdx: i, key: keys[i], model, q, score };
-      }
-    }
-  }
-  return best;
-};
-
-const buildPrompt = (text) => `[严格输出要求] 你只能输出一行 JSON,格式: {"allow": true|false, "reason": "<=30字中文"}
+[严格输出要求] 你只能输出一行 JSON,格式: {"allow": true|false, "reason": "<=30字中文"}
 禁止任何分析、推理、思考链、bullet 点、markdown 包裹、解释性文字。只要 JSON 这一行,其他都不许有。
-
-你是博客评论审核助手。本博客只允许真人原创、与正文相关的评论。请判断下面这条评论是否应被公开显示。
 
 【应拒绝】只要符合以下任意一项即拒:
 
@@ -92,10 +53,48 @@ const buildPrompt = (text) => `[严格输出要求] 你只能输出一行 JSON,�
 - 口语化、错别字、带情绪、不完美的语法 — 这些反而是真人特征
 - 评论中带 1~2 个相关技术链接(如 RFC、文档、源码)用于延伸讨论
 
-待审核评论:
-"""${text}"""
-
 [再次提醒] 只输出一行 JSON: {"allow": bool, "reason": "<=30字,被拒时必须指明AI/机器人/推广哪一类"}`;
+
+const buildUserPrompt = (text) => `待审核评论:\n"""${text}"""`;
+
+// ---------- 配额追踪: Map<`${keyIdx}:${model}`, { minuteWindow, dayWindow }> ----------
+const quotas = new Map();
+
+const getQ = (keyIdx, model) => {
+  const k = `${keyIdx}:${model}`;
+  let q = quotas.get(k);
+  if (!q) {
+    q = { minuteWindow: [], dayWindow: [] };
+    quotas.set(k, q);
+  }
+  return q;
+};
+
+const cleanQ = (q, now) => {
+  q.minuteWindow = q.minuteWindow.filter((t) => t > now - minute);
+  q.dayWindow = q.dayWindow.filter((t) => t > now - day);
+};
+
+// 找一个还有 RPM 且 RPD 最小的 slot — 均匀分散负载到各 key×model
+const pickSlot = () => {
+  const cfg = getConfig();
+  if (!cfg.enabled || cfg.keys.length === 0 || cfg.models.length === 0) return null;
+  const now = Date.now();
+  let best = null;
+  for (let i = 0; i < cfg.keys.length; i++) {
+    for (const model of cfg.models) {
+      const q = getQ(i, model);
+      cleanQ(q, now);
+      if (q.minuteWindow.length >= RPM_LIMIT) continue;
+      if (q.dayWindow.length >= RPD_LIMIT) continue;
+      const score = q.dayWindow.length + q.minuteWindow.length * 0.01;
+      if (!best || score < best.score) {
+        best = { keyIdx: i, key: cfg.keys[i], model, q, score };
+      }
+    }
+  }
+  return best;
+};
 
 // 扫描所有平衡的 {...} 块,尊重字符串/转义
 const findJsonObjects = (s) => {
@@ -130,10 +129,7 @@ const tryParseVerdict = (s) => {
   try {
     const obj = JSON.parse(s);
     if (typeof obj.allow !== 'boolean') return null;
-    return {
-      allow: obj.allow,
-      reason: String(obj.reason || '').slice(0, 200)
-    };
+    return { allow: obj.allow, reason: String(obj.reason || '').slice(0, 200) };
   } catch {
     return null;
   }
@@ -141,11 +137,8 @@ const tryParseVerdict = (s) => {
 
 const extractJson = (raw) => {
   if (!raw) return null;
-  // 1) 整段直接解析
   const direct = tryParseVerdict(raw.trim());
   if (direct) return direct;
-  // 2) 扫所有平衡的 {...},从右往左尝试 — 最终答案通常在末尾,
-  //    前面的 {...} 多半是 prompt 里 echo 的模板或思考链中的伪 JSON
   const candidates = findJsonObjects(raw);
   for (let i = candidates.length - 1; i >= 0; i--) {
     const parsed = tryParseVerdict(candidates[i]);
@@ -154,95 +147,72 @@ const extractJson = (raw) => {
   return null;
 };
 
-const callGemini = async (slot, text) => {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${slot.model}:generateContent?key=${encodeURIComponent(slot.key)}`;
-  const body = {
-    contents: [{ role: 'user', parts: [{ text: buildPrompt(text) }] }],
-    generationConfig: {
-      temperature: 0,
-      maxOutputTokens: 200,
-      // 强制服务端只返回 JSON;不被支持的 model 会忽略此字段,仍由 extractJson 兜底
-      response_mime_type: 'application/json',
-      response_schema: {
-        type: 'object',
-        properties: {
-          allow: { type: 'boolean' },
-          reason: { type: 'string' }
-        },
-        required: ['allow', 'reason']
-      }
-    }
-  };
-  const resp = await axios.post(url, body, {
-    timeout: REQUEST_TIMEOUT,
-    // 走代理时必须显式禁用 axios 内置 proxy 逻辑,完全交给 agent 接管
-    ...(proxyAgent ? { httpAgent: proxyAgent, httpsAgent: proxyAgent, proxy: false } : {})
-  });
-  const out = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return out;
+// ---------- 代理 agent — 按代理 URL 缓存,避免每次请求重建 ----------
+const agentCache = new Map();
+const getProxyAgent = (proxyUrl) => {
+  if (!proxyUrl) return null;
+  if (agentCache.has(proxyUrl)) return agentCache.get(proxyUrl);
+  let agent = null;
+  try {
+    const parsed = new URL(proxyUrl);
+    const scheme = parsed.protocol.replace(':', '').toLowerCase();
+    if (scheme.startsWith('socks')) agent = new SocksProxyAgent(proxyUrl);
+    else if (scheme === 'http' || scheme === 'https') agent = new HttpsProxyAgent(proxyUrl);
+    else console.warn(`[aiModeration] 不支持的代理协议: ${scheme} (仅支持 socks/socks5/http/https)`);
+  } catch {
+    console.warn(`[aiModeration] 代理 URL 无法解析,已忽略: ${proxyUrl}`);
+  }
+  agentCache.set(proxyUrl, agent);
+  return agent;
 };
 
-// 出于安全考虑只展示 key 的前 6 字符 + 末 4 字符,中间用 *** 代替 — 足够定位是哪一个,又不会在日志泄漏完整 key
+// 底层 OpenAI 兼容调用
+const doCall = async ({ baseUrl, key, model, proxyUrl, text }) => {
+  const url = `${baseUrl}/chat/completions`;
+  const body = {
+    model,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: buildUserPrompt(text) }
+    ],
+    temperature: 0,
+    max_tokens: 200,
+    // 多数 OpenAI 兼容端点支持;不支持的会忽略该字段,仍有 extractJson 兜底
+    response_format: { type: 'json_object' }
+  };
+  const agent = getProxyAgent(proxyUrl);
+  const resp = await axios.post(url, body, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`
+    },
+    timeout: REQUEST_TIMEOUT,
+    // 走代理时显式禁用 axios 内置 proxy 逻辑,完全交给 agent 接管
+    ...(agent ? { httpAgent: agent, httpsAgent: agent, proxy: false } : {})
+  });
+  return resp.data?.choices?.[0]?.message?.content || '';
+};
+
+// 用当前生效配置发起一次审核请求
+const callSlot = (slot, text) => {
+  const cfg = getConfig();
+  return doCall({ baseUrl: cfg.baseUrl, key: slot.key, model: slot.model, proxyUrl: cfg.proxy, text });
+};
+
+// 出于安全只展示 key 前 6 字符 + 末 4 字符,中间用 *** 代替
 const maskKey = (k) => {
   if (!k) return '<no-key>';
   if (k.length <= 12) return `${k.slice(0, 2)}***${k.slice(-2)}`;
   return `${k.slice(0, 6)}***${k.slice(-4)}`;
 };
 
-// 代理 agent — 在模块加载时解析一次,避免每次请求重建;支持:
-//   socks5://user:pass@host:1080  / socks5h://host:1080  / socks://host:1080
-//   http://user:pass@host:8080    / https://host:8080
-// 环境变量优先级:GEMINI_PROXY > HTTPS_PROXY > HTTP_PROXY > 无代理
-const getProxyUrl = () => process.env.GEMINI_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
-
-const buildProxyAgent = () => {
-  const proxyUrl = getProxyUrl();
-  if (!proxyUrl) return null;
-  let parsed;
-  try {
-    parsed = new URL(proxyUrl);
-  } catch {
-    console.warn(`[aiModeration] 代理 URL 无法解析,已忽略: ${proxyUrl}`);
-    return null;
-  }
-  const scheme = parsed.protocol.replace(':', '').toLowerCase();
-  try {
-    if (scheme.startsWith('socks')) {
-      return new SocksProxyAgent(proxyUrl);
-    }
-    if (scheme === 'http' || scheme === 'https') {
-      return new HttpsProxyAgent(proxyUrl);
-    }
-  } catch (err) {
-    console.warn(`[aiModeration] 构建代理 agent 失败 (${scheme}): ${err.message}`);
-    return null;
-  }
-  console.warn(`[aiModeration] 不支持的代理协议: ${scheme} (仅支持 socks/socks5/http/https)`);
-  return null;
-};
-
-const proxyAgent = buildProxyAgent();
-if (proxyAgent) {
-  // 打印时同样脱敏密码部分
-  const masked = (() => {
-    try {
-      const u = new URL(getProxyUrl());
-      if (u.password) u.password = '***';
-      if (u.username) u.username = u.username.slice(0, 2) + '***';
-      return u.toString();
-    } catch {
-      return '<set>';
-    }
-  })();
-  console.log(`[aiModeration] 使用代理: ${masked}`);
-}
-
 // returns { status: 'approved'|'rejected'|'pending', reason?, model?, keyIdx? }
 // 'pending' 表示 AI 暂时不可用(配额满 / 调用失败 / 输出无法解析),由 queue worker 之后重试
 exports.moderateComment = async (text) => {
-  if (getKeys().length === 0) {
-    // 未配置 key 时:审核停用,默认放行(但所有其他防御层仍生效)
-    return { status: 'approved', reason: 'moderation disabled (no GEMINI_API_KEYS)' };
+  const cfg = getConfig();
+  if (!cfg.enabled || cfg.keys.length === 0) {
+    // 未启用/未配 key:审核停用,默认放行(但其他所有防御层仍生效)
+    return { status: 'approved', reason: 'moderation disabled (no AI configured)' };
   }
   const slot = pickSlot();
   if (!slot) {
@@ -254,65 +224,64 @@ exports.moderateComment = async (text) => {
   slot.q.dayWindow.push(now);
 
   try {
-    const raw = await callGemini(slot, text);
+    const raw = await callSlot(slot, text);
     const verdict = extractJson(raw);
     if (!verdict) {
-      // 模型输出无法解析 — 进队列,人工/重试
       console.warn('[aiModeration] unparseable output', {
-        keyIdx: slot.keyIdx,
-        key: maskKey(slot.key),
-        model: slot.model,
-        rawOutput: raw
+        keyIdx: slot.keyIdx, key: maskKey(slot.key), model: slot.model, rawOutput: raw
       });
       return { status: 'pending', reason: 'AI 输出格式异常', model: slot.model, keyIdx: slot.keyIdx };
     }
-    return {
-      status: verdict.allow ? 'approved' : 'rejected',
-      reason: verdict.reason,
-      model: slot.model,
-      keyIdx: slot.keyIdx
-    };
+    return { status: verdict.allow ? 'approved' : 'rejected', reason: verdict.reason, model: slot.model, keyIdx: slot.keyIdx };
   } catch (err) {
     const code = err.response?.status;
     const detail = err.response?.data?.error?.message || err.message || 'unknown';
-    const rawOutput = err.response?.data ? JSON.stringify(err.response.data).slice(0, 500) : undefined;
-    // 429/503 等上游限流 — 标记 pending,worker 稍后重试
     console.error('[aiModeration] call failed', {
-      keyIdx: slot.keyIdx,
-      key: maskKey(slot.key),
-      model: slot.model,
-      code,
-      detail,
-      rawOutput
+      keyIdx: slot.keyIdx, key: maskKey(slot.key), model: slot.model, code, detail
     });
-    return {
-      status: 'pending',
-      reason: `调用失败(${code || 'ERR'}): ${String(detail).slice(0, 100)}`,
-      model: slot.model,
-      keyIdx: slot.keyIdx
-    };
+    return { status: 'pending', reason: `调用失败(${code || 'ERR'}): ${String(detail).slice(0, 100)}`, model: slot.model, keyIdx: slot.keyIdx };
   }
 };
 
 exports.hasCapacity = () => pickSlot() !== null;
 
 exports.getQuotaSnapshot = () => {
-  const keys = getKeys();
+  const cfg = getConfig();
   const now = Date.now();
   const snap = [];
-  for (let i = 0; i < keys.length; i++) {
-    for (const model of MODELS) {
+  for (let i = 0; i < cfg.keys.length; i++) {
+    for (const model of cfg.models) {
       const q = getQ(i, model);
       cleanQ(q, now);
       snap.push({
-        keyIdx: i,
-        model,
-        rpmUsed: q.minuteWindow.length,
-        rpmLimit: RPM_LIMIT,
-        rpdUsed: q.dayWindow.length,
-        rpdLimit: RPD_LIMIT
+        keyIdx: i, model,
+        rpmUsed: q.minuteWindow.length, rpmLimit: RPM_LIMIT,
+        rpdUsed: q.dayWindow.length, rpdLimit: RPD_LIMIT
       });
     }
   }
   return snap;
+};
+
+// 测试连接: 用给定的临时配置(不落库)对一条样本评论做一次调用,返回连通性与裁决
+exports.testConnection = async (cfg) => {
+  const baseUrl = (cfg.baseUrl || '').replace(/\/+$/, '');
+  const key = (cfg.keys || [])[0];
+  const model = (cfg.models || [])[0];
+  if (!baseUrl || !key || !model) {
+    return { ok: false, message: '请填写 baseURL、API Key 和模型名后再测试' };
+  }
+  try {
+    const raw = await doCall({
+      baseUrl, key, model,
+      proxyUrl: cfg.proxy || '',
+      text: '这是一条用于测试连接的人工评论：你好，这篇文章写得很清楚，我学到了不少。'
+    });
+    const verdict = extractJson(raw);
+    return { ok: true, model, verdict, raw: (raw || '').slice(0, 300) };
+  } catch (err) {
+    const code = err.response?.status;
+    const detail = err.response?.data?.error?.message || err.message || 'unknown';
+    return { ok: false, message: `调用失败(${code || 'ERR'}): ${String(detail).slice(0, 300)}` };
+  }
 };

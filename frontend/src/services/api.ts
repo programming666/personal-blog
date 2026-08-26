@@ -79,7 +79,12 @@ export const adminAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
-  deleteLogo: () => api.delete('/api/settings/logo')
+  deleteLogo: () => api.delete('/api/settings/logo'),
+  // AI 审核配置 (OpenAI 兼容)
+  getAiConfig: () => api.get('/api/admin/ai/config'),
+  saveAiConfig: (data) => api.put('/api/admin/ai/config', data),
+  resetAiConfig: () => api.post('/api/admin/ai/config/reset'),
+  testAiConfig: (data) => api.post('/api/admin/ai/config/test', data)
 };
 
 export const postsAPI = {

@@ -18,10 +18,14 @@ const {
   getPendingComments,
   moderateCommentManual,
   retryModeration,
+  getAdminProfile,
+  updateAdminProfile,
   getModerationQuota,
   runModerationTick,
-  getAdminProfile,
-  updateAdminProfile
+  getAiConfig,
+  saveAiConfig,
+  resetAiConfig,
+  testAiConfig
 } = require('../controllers/admin.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 const { adminLoginLimiter, adminTwoFactorLimiter } = require('../middleware/rateLimit.middleware');
@@ -67,5 +71,11 @@ router.put('/comments/:id/moderate', protect, authorize('admin'), moderateCommen
 router.post('/comments/:id/retry-moderation', protect, authorize('admin'), retryModeration);
 router.get('/moderation/quota', protect, authorize('admin'), getModerationQuota);
 router.post('/moderation/tick', protect, authorize('admin'), runModerationTick);
+
+// AI 审核配置(OpenAI 兼容)— 面板读写/恢复默认/测试连接
+router.get('/ai/config', protect, authorize('admin'), getAiConfig);
+router.put('/ai/config', protect, authorize('admin'), saveAiConfig);
+router.post('/ai/config/reset', protect, authorize('admin'), resetAiConfig);
+router.post('/ai/config/test', protect, authorize('admin'), testAiConfig);
 
 module.exports = router;

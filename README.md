@@ -36,16 +36,18 @@
 
 点赞 IP 速率 40/min、用户 20/min、用户 300/day。所有限流走 `ipKeyGenerator`,IPv6 正常归并。
 
-### AI 评论审核
-通过 **Google AI Studio** 原生 API 调用 `gemma-4-31b-it` 与 `gemma-4-26b-a4b-it` 双模型。
+### AI 评论审核(OpenAI 兼容)
+通过任意 **OpenAI 兼容**的 `/chat/completions` 端点审核(OpenAI / DeepSeek / Moonshot / OpenRouter / 本地 Ollama…)。
+可在后台「**AI 审核**」面板直接填写 baseURL / API Key / 模型 / 代理,**改配置无需重启**;
+也支持 `.env`(`AI_BASE_URL` / `AI_API_KEYS` / `AI_MODELS`)作为默认值,后台覆盖存库并可用「恢复默认」回退 .env。
 
-- 多 key 轮询:`GEMINI_API_KEYS` 逗号分隔,每个 `(key, model)` 各自 **RPM=10 / RPD=1500** 滑动窗口
-- 选 slot 时优先用量最低的组合,自动负载均衡
+- 多 key 轮询:`AI_API_KEYS`(或兼容读取 `GEMINI_API_KEYS`)逗号分隔,每个 `(key, model)` 各自 **RPM=10 / RPD=1500** 滑动窗口
+- 选 slot 时优先用量最低的组合,自动负载均衡(多模型逗号分隔同理)
 - 审核目标聚焦三类:**AI 生成内容**(模板化、过度规整、LLM 自暴露) / **机器人灌水**(空泛赞美、与正文无关、乱码) / **推广营销**(商业链接、加微信、SEO 关键词)
 - 出三种 verdict:`approved` / `rejected` / `pending`(配额耗尽 / AI 调用失败 / 输出无法解析,会被 queue worker 稍后重试)
 - 配额耗尽 → 标 `pending`,后台 `moderationQueueWorker` 每 30s 一轮扫待审,配额恢复自动出队
 - AI 调用失败 / 输出无法解析 → 同样进队列等重试,不丢消息
-- 未配 `GEMINI_API_KEYS` → 审核停用,评论直接发布
+- 未配置任何 key(`AI_API_KEYS` 为空或 `AI_ENABLED=false`)→ 审核停用,评论直接发布
 - 管理员可在「审核队列」面板看 **待审核 / 已拒绝 / 已通过** 三个 tab,手动通过/拒绝/重新调用 AI 重判,还能看到实时配额快照
 
 公开列表 `getPostComments` 仅返回 `moderationStatus: 'approved'`,pending/rejected 对非管理员不可见。
@@ -58,7 +60,7 @@
 - speakeasy (TOTP 2FA)
 - multer + sharp (图片管线)
 - express-rate-limit + express-slow-down
-- axios (调 Gemini API)
+- axios (调 OpenAI 兼容审核 API,支持 SOCKS5/HTTP 代理)
 
 **前端** (`frontend/`)
 - React 19 + TypeScript + Vite (大多文件用 `// @ts-nocheck`)
@@ -111,10 +113,13 @@ ADMIN_USERNAME=admin@blog.example.com
 ADMIN_PASSWORD=请改成强密码
 
 # AI 评论审核 (可选 — 不填则审核停用,评论直接发布)
-GEMINI_API_KEYS=key1,key2,key3          # 逗号分隔多 key
-
-# (可选) AI 出站代理 — 国内服务器调 Gemini 时用,支持 socks5/http
-# GEMINI_PROXY=socks5://127.0.0.1:1080
+# AI 评论审核 (OpenAI 兼容, 可选 — 也可在后台「AI 审核」面板填,无需改 env)
+AI_BASE_URL=https://api.openai.com/v1   # 填到版本路径,自动拼 /chat/completions
+AI_API_KEYS=key1,key2                   # 逗号分隔多 key
+AI_MODELS=gpt-4o-mini                   # 逗号分隔多模型
+AI_ENABLED=true                         # false 则停用审核,评论直接发布
+# (可选) AI 出站代理 — 国内服务器调海外 API 时用,支持 socks5/http
+# AI_PROXY=socks5://127.0.0.1:1080
 ```
 
 **`frontend/.env`**
@@ -154,14 +159,16 @@ personal-blog/
 │   ├── models/                # User, Post, Comment, Announcement, Setting
 │   ├── routes/                # auth, admin, posts, comments, announcements, settings
 │   ├── services/
-│   │   ├── aiModeration.js             # Gemini 调用 + key×model 配额轮询
+│   │   ├── aiConfig.js                 # AI 配置: .env 默认 + 后台面板(DB)覆盖,TTL 刷新
+│   │   ├── aiModeration.js             # OpenAI 兼容调用 + key×model 配额轮询 + 测试连接
 │   │   └── moderationQueueWorker.js    # 30s tick 重审 pending 评论
 │   ├── scripts/
 │   │   └── migrate-to-announcements.js # 一次性迁移旧消息系统
 │   └── server.js
 ├── frontend/src/
 │   ├── components/
-│   │   ├── AdminPanel.tsx              # 7 个 tab
+│   │   ├── AdminPanel.tsx              # 10 个 tab
+│   │   ├── AdminAiSettings.tsx          # AI 审核配置(baseURL/key/模型/代理)
 │   │   ├── AdminModerationQueue.tsx    # 待审/已拒/已通过 + 配额快照
 │   │   ├── AdminSecurity.tsx           # 2FA 设置
 │   │   ├── AdminSiteSettings.tsx       # Logo 上传

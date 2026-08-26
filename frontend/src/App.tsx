@@ -6,7 +6,6 @@ import LoginPage from './pages/LoginPage';
 import GitHubCallback from './pages/GitHubCallback';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
-import TeamPage from './pages/TeamPage';
 import './index.css';
 
 // 重依赖页面按路由懒加载:react-markdown / katex / highlight.js / 后台面板
@@ -39,7 +38,6 @@ function App() {
             <Route path="/github-callback" element={<GitHubCallback />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
-            <Route path="/team" element={<TeamPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/announcements" element={<AnnouncementsPage />} />
           </Routes>

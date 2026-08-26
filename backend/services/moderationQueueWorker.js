@@ -1,7 +1,7 @@
 // 审核队列消费者:周期性地把 pending 评论交给 AI 复审
 // AI 配额恢复后,pending 评论会自动被审完
 const Comment = require('../models/Comment');
-const { moderateComment, hasCapacity } = require('./aiModeration');
+const { moderateComment, hasCapacity, applyVerdictToComment } = require('./aiModeration');
 
 const TICK_INTERVAL = 30 * 1000; // 30s
 const BATCH_MAX = 20; // 每轮最多处理 20 条,避免独占事件循环
@@ -23,9 +23,7 @@ const tick = async () => {
       // 如果配额仍然没恢复,verdict 还是 pending — 不要再 save(无变化),直接退出等下一轮
       if (verdict.status === 'pending') break;
 
-      next.moderationStatus = verdict.status;
-      next.moderationReason = verdict.reason || '';
-      next.moderationModel = verdict.model || '';
+      applyVerdictToComment(next, verdict, next.content);
       await next.save();
       processed += 1;
     }

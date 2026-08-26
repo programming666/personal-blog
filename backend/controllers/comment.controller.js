@@ -1,6 +1,6 @@
 const Comment = require('../models/Comment');
 const Post = require('../models/Post');
-const { moderateComment } = require('../services/aiModeration');
+const { moderateComment, applyVerdictToComment } = require('../services/aiModeration');
 
 exports.createComment = async (req, res) => {
   try {
@@ -32,6 +32,9 @@ exports.createComment = async (req, res) => {
       moderationReason: verdict.reason || '',
       moderationModel: verdict.model || ''
     });
+    // 语气不友善且有实质内容时,applyVerdictToComment 会用 AI 重写版替换 content 并保留原文
+    applyVerdictToComment(comment, verdict, content);
+    if (comment.isModified()) await comment.save();
 
     await comment.populate('author', 'username name avatar role');
 

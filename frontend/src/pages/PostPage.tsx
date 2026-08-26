@@ -11,7 +11,7 @@ import 'highlight.js/styles/github-dark.css';
 import hljs from 'highlight.js/lib/common'; // 仅 35 种常用语言,替代全量 196 种
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { FaEdit, FaTrash, FaEye, FaComment, FaArrowLeft, FaUser, FaCalendarAlt, FaHeart, FaRegHeart } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaEye, FaComment, FaArrowLeft, FaUser, FaCalendarAlt, FaHeart, FaRegHeart, FaInfoCircle } from 'react-icons/fa';
 import TurnstileWidget from '../components/TurnstileWidget';
 
 const COMMENT_MAX = 100;
@@ -57,6 +57,7 @@ const PostPage = () => {
   const [replyText, setReplyText] = useState('');
   const [postLikeBusy, setPostLikeBusy] = useState(false);
   const [commentLikeBusy, setCommentLikeBusy] = useState({});
+  const [showOriginal, setShowOriginal] = useState({}); // 被 AI 润色的评论:展开看原评论
   const [hpComment, setHpComment] = useState('');
   const [hpReply, setHpReply] = useState('');
 
@@ -259,6 +260,23 @@ const PostPage = () => {
                       {comment.content}
                     </ReactMarkdown>
                   </div>
+                  {comment.isRewritten && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowOriginal((m) => ({ ...m, [comment._id]: !m[comment._id] }))}
+                        className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                      >
+                        <FaInfoCircle /> 原评论语气不友善，内容经 AI 润色后展示
+                        {showOriginal[comment._id] ? '（收起原文）' : '（查看原文）'}
+                      </button>
+                      {showOriginal[comment._id] && (
+                        <blockquote className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400 border-l-2 border-neutral-300 dark:border-neutral-700 pl-2">
+                          {comment.originalContent}
+                        </blockquote>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-3 flex items-center gap-4 text-xs">
                     <button
                       onClick={() => handleLikeComment(comment._id)}

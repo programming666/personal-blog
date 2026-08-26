@@ -19,10 +19,11 @@ const REQUEST_TIMEOUT = 30000;
 // system:转给模型的系统指令(严格 JSON + 分类规则);user:待审评论
 const SYSTEM_PROMPT = `你是博客评论审核助手。本博客只允许真人原创、与正文相关的评论。请判断下面这条评论是否应被公开显示。
 
-[严格输出要求] 你只能输出一行 JSON,格式: {"allow": true|false, "reason": "<=30字中文"}
+[严格输出要求] 你只能输出一行 JSON,格式: {"allow": true|false, "reason": "<=30字中文", "tone": "friendly"|"unfriendly", "rewritten": ""}
+allow 表示是否放行展示;tone 表示语气是否友好;rewritten 仅在 tone=unfriendly 且内容有实质价值时填写保留原意的友善重写版,其余情况一律为空字符串 "".
 禁止任何分析、推理、思考链、bullet 点、markdown 包裹、解释性文字。只要 JSON 这一行,其他都不许有。
 
-【应拒绝】只要符合以下任意一项即拒:
+【应拒绝 allow=false】只要符合以下任意一项即拒:
 
 1. **AI 生成内容** — 典型特征:
    - 过度规整结构,如"首先...其次...最后"、"总而言之"、"综上所述"
@@ -44,15 +45,28 @@ const SYSTEM_PROMPT = `你是博客评论审核助手。本博客只允许真人
    - SEO 关键词堆砌、外链建设话术
    - 与正文不相关的品牌、平台名推广
 
-【应允许】只要是真人对正文有具体回应,均放行:
-- 表达观点、质疑、反驳作者(措辞激烈但不构成攻击也可以)
+4. **纯恶意/无实质的阴阳怪气或攻击** — 内容本身不带任何有效观点,只由以下构成:
+   - 嘲讽、挖苦、抬杠("就这?"、"这也配叫技术文章?")
+   - 人身攻击、贬低、谩骂;居高临下地贬低作者能力
+
+【语气处理】当内容有实质价值(观点/问题/经验),但语气不友善时,不要直接拒绝:
+1. **阴阳怪气/不友善的典型特征**:
+   - 反讽、明褒暗贬("真厉害啊,结论全靠猜"、"不愧是您呢🙃")
+   - 连珠炮式反问、居高临下的说教("这都不懂?"、"麻烦先搞清楚再写")
+   - 以问句/奉承开头但夹带贬损的被动攻击
+   - 人身攻击倾向、贬低对方智力或水平
+2. **处理原则**:
+   - 有实质观点但语气不友善 → **allow=true, tone="unfriendly"**,并在 rewritten 中给出保留原意的友善重写版(≤100字,中文,去掉嘲讽换成平实表述和直接语气,保留技术观点/问题本身);reason 注明如"语气不友善,已重写"
+   - 完全是攻击互怼、无任何实质信息 → allow=false,直接拒绝
+
+【应允许】只要是真人对正文有具体回应,且语气友善或可接受,均放行:
+- 表达观点、质疑、反驳作者(措辞直接但不构成攻击)
 - 提具体问题、补充经验、举反例
 - 即使简短,只要带具体指向("第三段那个公式我推导不出来,能展开吗?"、"我前年也遇到一样的问题,后来用 X 解决了")
 - 口语化、错别字、带情绪、不完美的语法 — 这些反而是真人特征
 - 评论中带 1~2 个相关技术链接(如 RFC、文档、源码)用于延伸讨论
 
-[再次提醒] 只输出一行 JSON: {"allow": bool, "reason": "<=30字,被拒时必须指明AI/机器人/推广哪一类"}`;
-
+[再次提醒] 只输出一行 JSON: {"allow": bool, "reason": "<=30字,被拒时必须指明AI/机器人/推广/恶意哪一类", "tone": "friendly"|"unfriendly", "rewritten": "重写版或空串"}`;
 // 正文上下文上限 — 传给模型的文章截断长度(够判断离题即可,避免 token 浪费)
 const ARTICLE_CONTEXT_LIMIT = 4000;
 
@@ -144,7 +158,12 @@ const tryParseVerdict = (s) => {
   try {
     const obj = JSON.parse(s);
     if (typeof obj.allow !== 'boolean') return null;
-    return { allow: obj.allow, reason: String(obj.reason || '').slice(0, 200) };
+    return {
+      allow: obj.allow,
+      reason: String(obj.reason || '').slice(0, 200),
+      tone: obj.tone === 'unfriendly' ? 'unfriendly' : 'friendly',
+      rewritten: String(obj.rewritten || '').trim().slice(0, 500)
+    };
   } catch {
     return null;
   }
@@ -190,8 +209,7 @@ const doCall = async ({ baseUrl, key, model, proxyUrl, text, article }) => {
       { role: 'user', content: buildUserPrompt(text, article) }
     ],
     temperature: 0,
-    max_tokens: 200,
-    // 多数 OpenAI 兼容端点支持;不支持的会忽略该字段,仍有 extractJson 兜底
+    max_tokens: 300,
     response_format: { type: 'json_object' }
   };
   const agent = getProxyAgent(proxyUrl);
@@ -246,7 +264,7 @@ exports.moderateComment = async (text, opts = {}) => {
       });
       return { status: 'pending', reason: 'AI 输出格式异常', model: slot.model, keyIdx: slot.keyIdx };
     }
-    return { status: verdict.allow ? 'approved' : 'rejected', reason: verdict.reason, model: slot.model, keyIdx: slot.keyIdx };
+    return { status: verdict.allow ? 'approved' : 'rejected', reason: verdict.reason, model: slot.model, keyIdx: slot.keyIdx, tone: verdict.tone, rewritten: verdict.rewritten };
   } catch (err) {
     const code = err.response?.status;
     const detail = err.response?.data?.error?.message || err.message || 'unknown';
@@ -277,6 +295,25 @@ exports.getQuotaSnapshot = () => {
     }
   }
   return snap;
+};
+// 把 AI 裁决落到 Comment 文档上(含语气重写逻辑)。
+// 重写仅当: 裁决放行 + 模型给出非空 rewritten + 与原文不同。重写内容截断到 schema 上限 100 字。
+exports.applyVerdictToComment = (comment, verdict = {}, originalText = '') => {
+  comment.moderationStatus = verdict.status;
+  comment.moderationReason = verdict.reason || '';
+  comment.moderationModel = verdict.model || '';
+
+  // 先复位,再按新裁决决定是否重写(re-moderation 时旧的重写标记必须清掉)
+  comment.isRewritten = false;
+  comment.originalContent = '';
+  const original = String(originalText).trim();
+  const rewritten = String(verdict.rewritten || '').trim();
+  if (verdict.status === 'approved' && rewritten && rewritten !== original) {
+    comment.isRewritten = true;
+    comment.originalContent = original.slice(0, 100);
+    comment.content = rewritten.slice(0, 100);
+  }
+  return comment;
 };
 
 // 测试连接: 用给定的临时配置(不落库)对一条样本评论做一次调用,返回连通性与裁决

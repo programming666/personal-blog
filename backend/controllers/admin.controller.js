@@ -3,7 +3,7 @@ const Post = require('../models/Post');
 const Comment = require('../models/Comment');
 const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
-const { getQuotaSnapshot, moderateComment, testConnection } = require('../services/aiModeration');
+const { getQuotaSnapshot, moderateComment, testConnection, applyVerdictToComment } = require('../services/aiModeration');
 const { getConfig, saveConfig, resetConfig, hasDbOverride, splitCsv } = require('../services/aiConfig');
 const { tickNow } = require('../services/moderationQueueWorker');
 
@@ -434,9 +434,7 @@ exports.retryModeration = async (req, res) => {
     }
     if (!comment.populated('post')) await comment.populate('post', 'title content');
     const verdict = await moderateComment(comment.content, { article: comment.post ? { title: comment.post.title, content: comment.post.content } : null });
-    comment.moderationStatus = verdict.status;
-    comment.moderationReason = verdict.reason || '';
-    comment.moderationModel = verdict.model || '';
+    applyVerdictToComment(comment, verdict, comment.content);
     await comment.save();
     res.status(200).json({ success: true, data: comment, verdict });
   } catch (error) {

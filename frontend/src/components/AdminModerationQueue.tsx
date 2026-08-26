@@ -170,6 +170,14 @@ const AdminModerationQueue = () => {
                       {c.moderationReason && <>原因: {c.moderationReason}</>}
                     </p>
                   )}
+                  {c.isRewritten && (
+                    <details className="mt-1.5">
+                      <summary className="cursor-pointer text-xs text-amber-600 dark:text-amber-400">显示被润色的原评论</summary>
+                      <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 whitespace-pre-wrap break-words border-l-2 border-neutral-300 dark:border-neutral-700 pl-2">
+                        {c.originalContent}
+                      </p>
+                    </details>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   {status !== 'approved' && (

@@ -33,7 +33,10 @@ const CommentSchema = new mongoose.Schema({
     index: true
   },
   moderationReason: { type: String, default: '' },
-  moderationModel: { type: String, default: '' }
+  moderationModel: { type: String, default: '' },
+  // AI 语气重写: isRewritten=true 时 content 为润色版,originalContent 保留原评论(仅后台/管理员可见)
+  isRewritten: { type: Boolean, default: false, index: true },
+  originalContent: { type: String, default: '' }
 }, {
   timestamps: true
 });

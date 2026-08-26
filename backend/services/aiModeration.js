@@ -11,8 +11,6 @@ const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const { getConfig } = require('./aiConfig');
 
-const RPM_LIMIT = 10;
-const RPD_LIMIT = 1500;
 const minute = 60 * 1000;
 const day = 24 * 60 * minute;
 const REQUEST_TIMEOUT = 30000;
@@ -80,13 +78,15 @@ const pickSlot = () => {
   const cfg = getConfig();
   if (!cfg.enabled || cfg.keys.length === 0 || cfg.models.length === 0) return null;
   const now = Date.now();
+  const rpm = cfg.rpm || 10;
+  const rpd = cfg.rpd || 1500;
   let best = null;
   for (let i = 0; i < cfg.keys.length; i++) {
     for (const model of cfg.models) {
       const q = getQ(i, model);
       cleanQ(q, now);
-      if (q.minuteWindow.length >= RPM_LIMIT) continue;
-      if (q.dayWindow.length >= RPD_LIMIT) continue;
+      if (q.minuteWindow.length >= rpm) continue;
+      if (q.dayWindow.length >= rpd) continue;
       const score = q.dayWindow.length + q.minuteWindow.length * 0.01;
       if (!best || score < best.score) {
         best = { keyIdx: i, key: cfg.keys[i], model, q, score };
@@ -248,6 +248,8 @@ exports.hasCapacity = () => pickSlot() !== null;
 exports.getQuotaSnapshot = () => {
   const cfg = getConfig();
   const now = Date.now();
+  const rpm = cfg.rpm || 10;
+  const rpd = cfg.rpd || 1500;
   const snap = [];
   for (let i = 0; i < cfg.keys.length; i++) {
     for (const model of cfg.models) {
@@ -255,8 +257,8 @@ exports.getQuotaSnapshot = () => {
       cleanQ(q, now);
       snap.push({
         keyIdx: i, model,
-        rpmUsed: q.minuteWindow.length, rpmLimit: RPM_LIMIT,
-        rpdUsed: q.dayWindow.length, rpdLimit: RPD_LIMIT
+        rpmUsed: q.minuteWindow.length, rpmLimit: rpm,
+        rpdUsed: q.dayWindow.length, rpdLimit: rpd
       });
     }
   }

@@ -17,8 +17,9 @@ const AdminAiSettings = () => {
   const [apiKeys, setApiKeys] = useState('');
   const [models, setModels] = useState('');
   const [proxy, setProxy] = useState('');
+  const [rpm, setRpm] = useState('10');
+  const [rpd, setRpd] = useState('1500');
   const [keyCount, setKeyCount] = useState(0);
-
   const load = async () => {
     setLoading(true);
     try {
@@ -30,6 +31,8 @@ const AdminAiSettings = () => {
         setBaseUrl(d.baseUrl || '');
         setModels((d.models || []).join(', '));
         setProxy(d.proxy && d.proxy !== '<set>' ? d.proxy : '');
+        setRpm(String(d.rpm ?? 10));
+        setRpd(String(d.rpd ?? 1500));
         setKeyCount(d.keyCount || 0);
         // apiKeys 直接留空不预填(避免误把脱敏值当真实 key 保存)
         setApiKeys('');
@@ -52,7 +55,9 @@ const AdminAiSettings = () => {
         baseUrl,
         apiKeys,   // 空字符串 = 保持当前 key;填了则整体替换(逗号分隔)
         models,
-        proxy
+        proxy,
+        rpm: Number(rpm) || undefined,
+        rpd: Number(rpd) || undefined
       });
       const d = res.data.data;
       setKeyCount(d.keyCount);
@@ -201,6 +206,20 @@ const AdminAiSettings = () => {
             placeholder="socks5://127.0.0.1:1080"
             className="input-field font-mono"
           />
+          <p className="text-xs text-neutral-400 mt-1">留空表示直连；保存时显式清空会覆盖 .env 里的代理设置</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">每分钟请求上限 (RPM)</label>
+            <input type="number" min="1" value={rpm} onChange={(e) => setRpm(e.target.value)} className="input-field" />
+            <p className="text-xs text-neutral-400 mt-1">每 key 每模型</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">每天请求上限 (RPD)</label>
+            <input type="number" min="1" value={rpd} onChange={(e) => setRpd(e.target.value)} className="input-field" />
+            <p className="text-xs text-neutral-400 mt-1">超出后该模型暂停自动审核，评论进待审队列</p>
+          </div>
         </div>
       </div>
 
@@ -215,7 +234,7 @@ const AdminAiSettings = () => {
           <FaUndo /> 恢复默认(.env)
         </button>
       </div>
-      <p className="text-xs text-neutral-400">保存/测试即生效，无需重启后端；评论审核吞吐限制为每 key 每模型 10 次/分钟、1500 次/天。</p>
+      <p className="text-xs text-neutral-400">保存/测试即生效，无需重启后端；评论审核吞吐限制为每 key 每模型 {rpm || 10} 次/分钟、{rpd || 1500} 次/天。</p>
     </div>
   );
 };

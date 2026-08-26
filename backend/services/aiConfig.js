@@ -12,6 +12,11 @@ const REFRESH_INTERVAL = 30 * 1000; // 兜底定时刷新 DB 覆盖
 // 逗号分隔字符串 -> 非空数组
 const splitCsv = (s) => String(s || '').split(',').map((v) => v.trim()).filter(Boolean);
 
+// 整数限制: >=1 取整数, 否则返回 fallback
+const clampInt = (v, fallback) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : fallback;
+};
 // ---- .env 默认值 ----
 function buildFromEnv() {
   return {
@@ -19,7 +24,9 @@ function buildFromEnv() {
     baseUrl: (process.env.AI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
     keys: splitCsv(process.env.AI_API_KEYS || process.env.GEMINI_API_KEYS),
     models: splitCsv(process.env.AI_MODELS || 'gpt-4o-mini'),
-    proxy: process.env.AI_PROXY || process.env.GEMINI_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY || ''
+    proxy: process.env.AI_PROXY || process.env.GEMINI_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '',
+    rpm: clampInt(process.env.AI_RPM, 10),
+    rpd: clampInt(process.env.AI_RPD, 1500)
   };
 }
 
@@ -30,7 +37,9 @@ function merge(base, db) {
     baseUrl: db?.baseUrl ? String(db.baseUrl).replace(/\/+$/, '') : base.baseUrl,
     keys: Array.isArray(db?.keys) && db.keys.length ? db.keys : base.keys,
     models: Array.isArray(db?.models) && db.models.length ? db.models : base.models,
-    proxy: db?.proxy ? String(db.proxy) : base.proxy
+    proxy: db && 'proxy' in db ? String(db.proxy || '').trim() : base.proxy,
+    rpm: typeof db?.rpm === 'number' ? clampInt(db.rpm, base.rpm) : base.rpm,
+    rpd: typeof db?.rpd === 'number' ? clampInt(db.rpd, base.rpd) : base.rpd
   };
 }
 
@@ -78,7 +87,9 @@ async function saveConfig(patch = {}) {
     baseUrl: patch.baseUrl ? String(patch.baseUrl).trim().replace(/\/+$/, '') : db?.baseUrl,
     keys: Array.isArray(patch.keys) ? patch.keys.map((k) => String(k).trim()).filter(Boolean) : db?.keys,
     models: Array.isArray(patch.models) ? patch.models.map((m) => String(m).trim()).filter(Boolean) : db?.models,
-    proxy: patch.proxy !== undefined ? String(patch.proxy).trim() : db?.proxy
+    proxy: patch.proxy !== undefined ? String(patch.proxy).trim() : (db && 'proxy' in db ? String(db.proxy || '').trim() : ''),
+    rpm: patch.rpm !== undefined ? clampInt(patch.rpm, undefined) : (typeof db?.rpm === 'number' ? db.rpm : undefined),
+    rpd: patch.rpd !== undefined ? clampInt(patch.rpd, undefined) : (typeof db?.rpd === 'number' ? db.rpd : undefined)
   };
 
   // 只持久化有效覆盖字段
@@ -87,7 +98,10 @@ async function saveConfig(patch = {}) {
   if (merged.baseUrl) toStore.baseUrl = merged.baseUrl;
   if (Array.isArray(merged.keys) && merged.keys.length) toStore.keys = merged.keys;
   if (Array.isArray(merged.models) && merged.models.length) toStore.models = merged.models;
-  if (merged.proxy) toStore.proxy = merged.proxy;
+  // proxy 显式给过就持久化(包括空串=明确直连),不能被旧值/环境值覆盖
+  if (patch.proxy !== undefined) toStore.proxy = String(patch.proxy).trim();
+  if (merged.rpm !== undefined && merged.rpm >= 1) toStore.rpm = merged.rpm;
+  if (merged.rpd !== undefined && merged.rpd >= 1) toStore.rpd = merged.rpd;
 
   if (Object.keys(toStore).length === 0) {
     await Setting.deleteOne({ key: SETTING_KEY });

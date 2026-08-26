@@ -556,6 +556,8 @@ exports.getAiConfig = async (req, res) => {
         enabled: cfg.enabled,
         baseUrl: cfg.baseUrl,
         models: cfg.models,
+        rpm: cfg.rpm,
+        rpd: cfg.rpd,
         keyCount: cfg.keys.length,
         keys: cfg.keys.map(maskSecret),
         proxy: cfg.proxy ? maskProxy(cfg.proxy) : ''
@@ -568,7 +570,7 @@ exports.getAiConfig = async (req, res) => {
 
 exports.saveAiConfig = async (req, res) => {
   try {
-    const { enabled, baseUrl, apiKeys, models, proxy } = req.body;
+    const { enabled, baseUrl, apiKeys, models, proxy, rpm, rpd } = req.body;
     const patch = {};
     if (typeof enabled === 'boolean') patch.enabled = enabled;
     if (typeof baseUrl === 'string' && baseUrl.trim()) patch.baseUrl = baseUrl.trim();
@@ -581,10 +583,12 @@ exports.saveAiConfig = async (req, res) => {
       if (ms.length) patch.models = ms;
     }
     if (typeof proxy === 'string') patch.proxy = proxy.trim();
+    if (rpm !== undefined && rpm !== null && rpm !== '') patch.rpm = Number(rpm);
+    if (rpd !== undefined && rpd !== null && rpd !== '') patch.rpd = Number(rpd);
     const cfg = await saveConfig(patch);
     res.status(200).json({
       success: true,
-      data: { enabled: cfg.enabled, baseUrl: cfg.baseUrl, models: cfg.models, keyCount: cfg.keys.length }
+      data: { enabled: cfg.enabled, baseUrl: cfg.baseUrl, models: cfg.models, rpm: cfg.rpm, rpd: cfg.rpd, keyCount: cfg.keys.length }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -596,7 +600,7 @@ exports.resetAiConfig = async (req, res) => {
     const cfg = await resetConfig();
     res.status(200).json({
       success: true,
-      data: { source: 'env', enabled: cfg.enabled, baseUrl: cfg.baseUrl, models: cfg.models, keyCount: cfg.keys.length }
+      data: { source: 'env', enabled: cfg.enabled, baseUrl: cfg.baseUrl, models: cfg.models, rpm: cfg.rpm, rpd: cfg.rpd, keyCount: cfg.keys.length }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

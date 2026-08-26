@@ -38,10 +38,10 @@
 
 ### AI 评论审核(OpenAI 兼容)
 通过任意 **OpenAI 兼容**的 `/chat/completions` 端点审核(OpenAI / DeepSeek / Moonshot / OpenRouter / 本地 Ollama…)。
-可在后台「**AI 审核**」面板直接填写 baseURL / API Key / 模型 / 代理,**改配置无需重启**;
+可在后台「**AI 审核**」面板直接填写 baseURL / API Key / 模型 / 代理,**改配置无需重启**;代理**显式清空保存=直连**,可覆盖 .env 里的 `AI_PROXY` / `GEMINI_PROXY`;
 也支持 `.env`(`AI_BASE_URL` / `AI_API_KEYS` / `AI_MODELS`)作为默认值,后台覆盖存库并可用「恢复默认」回退 .env。
 
-- 多 key 轮询:`AI_API_KEYS`(或兼容读取 `GEMINI_API_KEYS`)逗号分隔,每个 `(key, model)` 各自 **RPM=10 / RPD=1500** 滑动窗口
+- 多 key 轮询:`AI_API_KEYS`(或兼容读取 `GEMINI_API_KEYS`)逗号分隔,每个 `(key, model)` 各自 **RPM / RPD** 滑动窗口(默认 10/1500,后台面板或 `AI_RPM` / `AI_RPD` 可调)
 - 选 slot 时优先用量最低的组合,自动负载均衡(多模型逗号分隔同理)
 - 审核目标聚焦三类:**AI 生成内容**(模板化、过度规整、LLM 自暴露) / **机器人灌水**(空泛赞美、与正文无关、乱码) / **推广营销**(商业链接、加微信、SEO 关键词)
 - 出三种 verdict:`approved` / `rejected` / `pending`(配额耗尽 / AI 调用失败 / 输出无法解析,会被 queue worker 稍后重试)
@@ -117,8 +117,10 @@ ADMIN_PASSWORD=请改成强密码
 AI_BASE_URL=https://api.openai.com/v1   # 填到版本路径,自动拼 /chat/completions
 AI_API_KEYS=key1,key2                   # 逗号分隔多 key
 AI_MODELS=gpt-4o-mini                   # 逗号分隔多模型
+AI_RPM=10                              # 每 key 每模型 每分钟上限
+AI_RPD=1500                            # 每 key 每模型 每天上限
 AI_ENABLED=true                         # false 则停用审核,评论直接发布
-# (可选) AI 出站代理 — 国内服务器调海外 API 时用,支持 socks5/http
+# (可选) AI 出站代理 — 国内服务器调海外 API 时用,支持 socks5/http;面板显式清空可覆盖
 # AI_PROXY=socks5://127.0.0.1:1080
 ```
 

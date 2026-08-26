@@ -248,6 +248,9 @@ const PostPage = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-neutral-900 dark:text-white">{comment.author?.name || comment.author?.username}</span>
+                    {comment.author?.role === 'admin' && (
+                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">[admin]</span>
+                    )}
                     <span className="text-xs text-neutral-500 dark:text-neutral-400">{formatDate(comment.createdAt)}</span>
                   </div>
                   <div className="mt-2 prose prose-sm prose-neutral dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
@@ -385,7 +388,12 @@ const PostPage = () => {
             <div className="flex items-center gap-3">
               <Avatar user={post.author} size="md" />
               <div>
-                <div className="font-medium text-neutral-900 dark:text-white">{post.author?.name || post.author?.username}</div>
+                <div className="font-medium text-neutral-900 dark:text-white flex items-center gap-2">
+                  <span>{post.author?.name || post.author?.username}</span>
+                  {post.author?.role === 'admin' && (
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">[admin]</span>
+                  )}
+                </div>
                 <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400">
                   <span className="flex items-center gap-1">
                     <FaCalendarAlt /> {formatDate(post.createdAt)}

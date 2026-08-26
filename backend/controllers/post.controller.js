@@ -13,7 +13,7 @@ exports.getPosts = async (req, res) => {
 
     const [posts, total] = await Promise.all([
       Post.find(query)
-        .populate('author', 'username name avatar')
+        .populate('author', 'username name avatar role')
         .skip(skip)
         .limit(limit)
         .sort({ publishedAt: -1 }),
@@ -36,7 +36,7 @@ exports.getPost = async (req, res) => {
     const post = await Post.findOne({
       $or: [{ _id: req.params.id }, { slug: req.params.slug }]
     })
-      .populate('author', 'username name avatar bio')
+      .populate('author', 'username name avatar bio role')
       .populate('comments');
 
     if (!post) {

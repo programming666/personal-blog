@@ -57,7 +57,9 @@ module.exports = (passport) => {
             githubId: profile.id,
             username,
             email,
-            name: profile.displayName || githubUsername,
+            // 展示用 name 用 GitHub handle(用户名),不再用 displayName(昵称)
+            // 这样 author.name 在前端展示时就是 GitHub 用户名本身
+            name: githubUsername,
             avatar: profile.photos?.[0]?.value
           });
 

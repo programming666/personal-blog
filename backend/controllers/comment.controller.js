@@ -33,7 +33,7 @@ exports.createComment = async (req, res) => {
       moderationModel: verdict.model || ''
     });
 
-    await comment.populate('author', 'username name avatar');
+    await comment.populate('author', 'username name avatar role');
 
     if (verdict.status === 'rejected') {
       return res.status(200).json({
@@ -88,7 +88,7 @@ exports.updateComment = async (req, res) => {
       req.params.id,
       { content: req.body.content },
       { new: true, runValidators: true }
-    ).populate('author', 'username name avatar');
+    ).populate('author', 'username name avatar role');
 
     res.status(200).json({ success: true, data: comment });
   } catch (error) {

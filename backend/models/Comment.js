@@ -38,11 +38,11 @@ const CommentSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// 获取评论时自动填充作者信息
+// 获取评论时自动填充作者信息(含 role 用于前端 admin 徽章)
 CommentSchema.pre(/^find/, function(next) {
   this.populate({
     path: 'author',
-    select: 'username name avatar'
+    select: 'username name avatar role'
   });
   next();
 });

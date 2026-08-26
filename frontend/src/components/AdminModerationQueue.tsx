@@ -151,6 +151,9 @@ const AdminModerationQueue = () => {
                     <span className="font-medium text-neutral-900 dark:text-white">
                       {c.author?.name || c.author?.username || '匿名'}
                     </span>
+                    {c.author?.role === 'admin' && (
+                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">[admin]</span>
+                    )}
                     <span className="text-neutral-500 dark:text-neutral-400">
                       文章: {c.post?.title || '—'}
                     </span>

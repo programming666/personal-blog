@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { t } from '../i18n';
 import { FaGithub } from 'react-icons/fa';
 
 const LoginPage = () => {
@@ -26,10 +27,10 @@ const LoginPage = () => {
               <FaGithub className="text-2xl text-neutral-900 dark:text-white" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-white">
-              欢迎回来
+              {t('login.welcome')}
             </h1>
             <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-              使用 GitHub 账号继续，以发表评论
+              {t('login.subtitle')}
             </p>
           </div>
 
@@ -38,13 +39,13 @@ const LoginPage = () => {
             className="w-full flex justify-center items-center gap-3 py-3 px-4 rounded-xl text-base font-medium bg-neutral-900 text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 transition-colors"
           >
             <FaGithub className="text-xl" />
-            使用 GitHub 登录
+            {t('login.github')}
           </button>
 
           <p className="mt-6 text-xs text-center text-neutral-500 dark:text-neutral-400">
-            登录即表示同意我们的
-            <a href="/terms" className="ml-1 underline underline-offset-2">服务条款</a> 与
-            <a href="/privacy" className="ml-1 underline underline-offset-2">隐私协议</a>
+            {t('login.agree')}
+            <a href="/terms" className="ml-1 underline underline-offset-2">{t('login.terms')}</a> 与
+            <a href="/privacy" className="ml-1 underline underline-offset-2">{t('login.privacy')}</a>
           </p>
         </div>
       </div>

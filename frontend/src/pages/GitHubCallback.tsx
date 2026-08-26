@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaSpinner } from 'react-icons/fa';
+import { t } from '../i18n';
 
 const GitHubCallback = () => {
   const navigate = useNavigate();
@@ -53,10 +54,10 @@ const GitHubCallback = () => {
       <div className="text-center">
         <FaSpinner className="animate-spin text-4xl text-primary mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-          正在处理GitHub登录...
+          {t('cb.processing')}
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
-          请稍候，正在为您登录
+          {t('cb.redirect')}
         </p>
       </div>
     </div>

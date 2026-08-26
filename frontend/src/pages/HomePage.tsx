@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { postsAPI } from '../services/api';
+import { getLang, t } from '../i18n';
+import { translateTexts } from '../translate';
 import { FaArrowRight, FaEye, FaClock, FaSearch, FaChevronLeft, FaChevronRight, FaHeart } from 'react-icons/fa';
 
 const HomePage = () => {
@@ -10,6 +12,8 @@ const HomePage = () => {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [trTitles, setTrTitles] = useState({}); // en 模式:卡片标题/摘要译文
+  const isEn = getLang() === 'en';
 
   const formatDate = (dateString) =>
     new Date(dateString).toLocaleDateString('zh-CN', {
@@ -26,7 +30,7 @@ const HomePage = () => {
         setPosts(response.data.data);
         setTotalPages(response.data.pagination.pages);
       } catch (err) {
-        setError('无法加载文章列表，请稍后再试');
+        setError(t('home.error'));
         console.error('Error fetching posts:', err);
       } finally {
         setLoading(false);
@@ -35,6 +39,24 @@ const HomePage = () => {
     fetchPosts();
     window.scrollTo(0, 0);
   }, [page]);
+
+  // AI 翻译:en 模式下批量翻译当前页卡片的标题与摘要(缓存命中直接返回)
+  useEffect(() => {
+    if (!posts.length || !isEn) return;
+    let cancelled = false;
+    const texts = posts.flatMap((p) => [p.title, p.summary || (p.content ? p.content.substring(0, 140) : '')]);
+    translateTexts(texts)
+      .then((translations) => {
+        if (cancelled) return;
+        const map = {};
+        posts.forEach((p, i) => {
+          map[p._id] = { title: translations[i * 2], summary: translations[i * 2 + 1] };
+        });
+        setTrTitles(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [posts, isEn]);
 
   const handlePageChange = (newPage) => {
     if (newPage > 0 && newPage <= totalPages) setPage(newPage);
@@ -45,13 +67,13 @@ const HomePage = () => {
       <section className="border-b border-neutral-200 dark:border-neutral-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 text-center">
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 mb-6">
-            个人技术博客
+            {t('home.tagline')}
           </span>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-900 dark:text-white">
-            分享思考，记录成长
+            {t('home.heroTitle')}
           </h1>
           <p className="mt-6 max-w-2xl mx-auto text-base sm:text-lg text-neutral-500 dark:text-neutral-400 leading-relaxed">
-            技术分享、学习心得与日常思考，希望能给你带来一些启发。
+            {t('home.heroSub')}
           </p>
         </div>
       </section>
@@ -77,8 +99,8 @@ const HomePage = () => {
             <div className="w-16 h-16 mx-auto rounded-full border border-neutral-200 dark:border-neutral-800 grid place-items-center mb-4">
               <FaSearch className="text-2xl text-neutral-400" />
             </div>
-            <h3 className="text-xl font-semibold text-neutral-700 dark:text-neutral-200">还没有文章</h3>
-            <p className="mt-2 text-neutral-500 dark:text-neutral-400">作者正在准备中，敬请期待</p>
+            <h3 className="text-xl font-semibold text-neutral-700 dark:text-neutral-200">{t('home.empty')}</h3>
+            <p className="mt-2 text-neutral-500 dark:text-neutral-400">{t('home.emptySub')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -113,11 +135,11 @@ const HomePage = () => {
                   )}
 
                   <h2 className="text-lg font-semibold leading-snug text-neutral-900 dark:text-white line-clamp-2 mb-2">
-                    <Link to={`/posts/${post._id}`}>{post.title}</Link>
+                    <Link to={`/posts/${post._id}`}>{trTitles[post._id]?.title || post.title}</Link>
                   </h2>
 
                   <p className="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-3 mb-4 flex-1">
-                    {post.summary || (post.content ? post.content.substring(0, 140) + '…' : '')}
+                    {trTitles[post._id]?.summary || post.summary || (post.content ? post.content.substring(0, 140) + '…' : '')}
                   </p>
 
                   <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
@@ -136,7 +158,7 @@ const HomePage = () => {
                       to={`/posts/${post._id}`}
                       className="flex items-center gap-1 font-medium text-neutral-900 dark:text-white group-hover:gap-2 transition-all"
                     >
-                      阅读 <FaArrowRight className="text-[10px]" />
+                      {t('home.read')} <FaArrowRight className="text-[10px]" />
                     </Link>
                   </div>
                 </div>
@@ -151,7 +173,7 @@ const HomePage = () => {
               onClick={() => handlePageChange(page - 1)}
               disabled={page === 1}
               className="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              aria-label="上一页"
+              aria-label={t('home.prev')}
             >
               <FaChevronLeft />
             </button>
@@ -174,7 +196,7 @@ const HomePage = () => {
               onClick={() => handlePageChange(page + 1)}
               disabled={page === totalPages}
               className="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              aria-label="下一页"
+              aria-label={t('home.next')}
             >
               <FaChevronRight />
             </button>

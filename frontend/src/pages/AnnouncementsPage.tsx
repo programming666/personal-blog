@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
 import { announcementsAPI } from '../services/api';
+import { getLang, t } from '../i18n';
+import { translateTexts } from '../translate';
 import { FaThumbtack, FaBullhorn, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,6 +13,8 @@ const AnnouncementsPage = () => {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [trMap, setTrMap] = useState({}); // en 模式:公告标题/内容译文
+  const isEn = getLang() === 'en';
 
   const formatDate = (dateString) =>
     new Date(dateString).toLocaleDateString('zh-CN', {
@@ -27,7 +31,7 @@ const AnnouncementsPage = () => {
         setItems(response.data.data);
         setTotalPages(response.data.pagination.pages);
       } catch (err) {
-        setError('无法加载公告，请稍后再试');
+        setError(t('ann.listError'));
         console.error(err);
       } finally {
         setLoading(false);
@@ -37,6 +41,24 @@ const AnnouncementsPage = () => {
     window.scrollTo(0, 0);
   }, [page]);
 
+  // AI 翻译:en 模式下批量翻译当前页公告(缓存命中直接返回)
+  useEffect(() => {
+    if (!items.length || !isEn) return;
+    let cancelled = false;
+    const texts = items.flatMap((it) => [it.title, it.content]);
+    translateTexts(texts)
+      .then((translations) => {
+        if (cancelled) return;
+        const map = {};
+        items.forEach((it, i) => {
+          map[it._id] = { title: translations[i * 2], content: translations[i * 2 + 1] };
+        });
+        setTrMap(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [items, isEn]);
+
   return (
     <div>
       <section className="border-b border-neutral-200 dark:border-neutral-800">
@@ -45,10 +67,10 @@ const AnnouncementsPage = () => {
             <FaBullhorn className="text-2xl text-neutral-900 dark:text-white" />
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-neutral-900 dark:text-white">
-            站点公告
+            {t('ann.title')}
           </h1>
           <p className="mt-4 max-w-xl mx-auto text-neutral-500 dark:text-neutral-400">
-            来自管理员的最新动态与通知
+            {t('ann.subtitle')}
           </p>
         </div>
       </section>
@@ -68,8 +90,8 @@ const AnnouncementsPage = () => {
           </div>
         ) : items.length === 0 ? (
           <div className="text-center py-20 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-            <h3 className="text-xl font-semibold text-neutral-700 dark:text-neutral-200">暂无公告</h3>
-            <p className="mt-2 text-neutral-500 dark:text-neutral-400">敬请期待</p>
+            <h3 className="text-xl font-semibold text-neutral-700 dark:text-neutral-200">{t('ann.empty')}</h3>
+            <p className="mt-2 text-neutral-500 dark:text-neutral-400">{t('ann.emptySub')}</p>
           </div>
         ) : (
           <div className="space-y-5">
@@ -82,11 +104,11 @@ const AnnouncementsPage = () => {
                   <div className="flex items-center gap-2 min-w-0">
                     {item.pinned && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900">
-                        <FaThumbtack className="text-[10px]" /> 置顶
+                        <FaThumbtack className="text-[10px]" /> {t('ann.pinned')}
                       </span>
                     )}
                     <h2 className="text-xl font-semibold text-neutral-900 dark:text-white truncate">
-                      {item.title}
+                      {trMap[item._id]?.title || item.title}
                     </h2>
                   </div>
                   <time className="text-sm text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
@@ -94,7 +116,7 @@ const AnnouncementsPage = () => {
                   </time>
                 </header>
                 <div className="prose prose-neutral dark:prose-invert max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{trMap[item._id]?.content || item.content}</ReactMarkdown>
                 </div>
               </article>
             ))}

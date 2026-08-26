@@ -113,4 +113,9 @@ export const settingsAPI = {
   getPublic: () => api.get('/api/settings')
 };
 
+export const translateAPI = {
+  // texts: string[], target: 'zh' | 'en' → { success, translations }
+  batch: (texts, target) => api.post('/api/translate', { texts, target })
+};
+
 export default api;

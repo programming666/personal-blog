@@ -11,6 +11,8 @@ import 'highlight.js/styles/github-dark.css';
 import hljs from 'highlight.js/lib/common'; // 仅 35 种常用语言,替代全量 196 种
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { getLang, t } from '../i18n';
+import { translateTexts } from '../translate';
 import { FaEdit, FaTrash, FaEye, FaComment, FaArrowLeft, FaUser, FaCalendarAlt, FaHeart, FaRegHeart, FaInfoCircle } from 'react-icons/fa';
 import TurnstileWidget from '../components/TurnstileWidget';
 
@@ -60,6 +62,10 @@ const PostPage = () => {
   const [showOriginal, setShowOriginal] = useState({}); // 被 AI 润色的评论:展开看原评论
   const [hpComment, setHpComment] = useState('');
   const [hpReply, setHpReply] = useState('');
+  // 内容翻译(en 模式):文章标题/正文 + 每条评论译文
+  const [trPost, setTrPost] = useState(null);
+  const [trComments, setTrComments] = useState({});
+  const isEn = getLang() === 'en';
 
   const userIdStr = user?._id ? String(user._id) : user?.id ? String(user.id) : '';
   const isPostLiked = !!(userIdStr && post?.likes?.some((l) => String(l) === userIdStr));
@@ -70,8 +76,7 @@ const PostPage = () => {
       setLoading(true);
       const response = await postsAPI.getPost(id);
       setPost(response.data.data);
-    } catch (err) {
-      setError('无法加载文章内容，请稍后再试');
+      setError(t('post.errorLoad'));
     } finally {
       setLoading(false);
     }
@@ -94,6 +99,33 @@ const PostPage = () => {
   useEffect(() => {
     if (post?._id) fetchComments();
   }, [post]);
+
+  // AI 翻译:en 模式下对文章标题/正文与评论批量翻译(缓存命中直接返回)
+  useEffect(() => {
+    if (!post || !isEn) return;
+    let cancelled = false;
+    translateTexts([post.title, post.content])
+      .then(([title, content]) => {
+        if (!cancelled) setTrPost({ title, content });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [post, isEn]);
+
+  useEffect(() => {
+    if (!comments.length || !isEn) return;
+    let cancelled = false;
+    const ids = comments.map((c) => c._id);
+    translateTexts(comments.map((c) => c.content))
+      .then((translations) => {
+        if (cancelled) return;
+        const map = {};
+        ids.forEach((id, i) => { map[id] = translations[i]; });
+        setTrComments(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [comments, isEn]);
 
   useEffect(() => {
     if (!post) return;
@@ -124,7 +156,7 @@ const PostPage = () => {
         return { ...prev, likes: liked ? [...without, user._id || user.id] : without };
       });
     } catch (err) {
-      alert(err.response?.data?.message || '点赞失败');
+      alert(err.response?.data?.message || t('post.likeFail'));
     } finally {
       setPostLikeBusy(false);
     }
@@ -148,7 +180,7 @@ const PostPage = () => {
         })
       );
     } catch (err) {
-      alert(err.response?.data?.message || '点赞失败');
+      alert(err.response?.data?.message || t('post.likeFail'));
     } finally {
       setCommentLikeBusy((m) => ({ ...m, [commentId]: false }));
     }
@@ -159,7 +191,7 @@ const PostPage = () => {
     if (!commentText.trim() || !user) return;
     if (commentText.length > COMMENT_MAX) return;
     if (!turnstileToken) {
-      alert('请先完成人机验证');
+      alert(t('post.captcha'));
       return;
     }
     try {
@@ -174,9 +206,9 @@ const PostPage = () => {
       if (status === 'approved' && response.data?.data) {
         setComments([response.data.data, ...comments]);
       } else if (status === 'pending') {
-        alert(response.data?.message || '评论已提交，正在审核中，通过后将公开显示');
+        alert(response.data?.message || t('post.submitted'));
       } else if (status === 'rejected') {
-        alert(response.data?.message || '评论未通过审核');
+        alert(response.data?.message || t('post.rejected'));
       } else if (response.data?.data) {
         setComments([response.data.data, ...comments]);
       }
@@ -184,7 +216,7 @@ const PostPage = () => {
       setTurnstileToken('');
       setHpComment('');
     } catch (err) {
-      alert(err.response?.data?.message || '评论提交失败');
+      alert(err.response?.data?.message || t('post.submitFail'));
     } finally {
       setSubmittingComment(false);
     }
@@ -195,7 +227,7 @@ const PostPage = () => {
     if (!replyText.trim() || !user) return;
     if (replyText.length > COMMENT_MAX) return;
     if (!turnstileToken) {
-      alert('请先完成人机验证');
+      alert(t('post.captcha'));
       return;
     }
     try {
@@ -210,9 +242,9 @@ const PostPage = () => {
       if (status === 'approved' && response.data?.data) {
         setComments([response.data.data, ...comments]);
       } else if (status === 'pending') {
-        alert(response.data?.message || '回复已提交，正在审核中');
+        alert(response.data?.message || t('post.replySubmitted'));
       } else if (status === 'rejected') {
-        alert(response.data?.message || '回复未通过审核');
+        alert(response.data?.message || t('post.replyRejected'));
       } else if (response.data?.data) {
         setComments([response.data.data, ...comments]);
       }
@@ -221,17 +253,17 @@ const PostPage = () => {
       setTurnstileToken('');
       setHpReply('');
     } catch (err) {
-      alert(err.response?.data?.message || '回复提交失败');
+      alert(err.response?.data?.message || t('post.replyFail'));
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('确定要删除这篇文章吗？此操作不可恢复。')) return;
+    if (!window.confirm(t('post.confirmDeletePost'))) return;
     try {
       await postsAPI.deletePost(post._id);
       navigate('/');
     } catch (err) {
-      alert('删除失败，请稍后再试');
+      alert(t('post.deleteFail'));
     }
   };
 
@@ -257,7 +289,7 @@ const PostPage = () => {
                   </div>
                   <div className="mt-2 prose prose-sm prose-neutral dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
                     <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
-                      {comment.content}
+                      {trComments[comment._id] || comment.content}
                     </ReactMarkdown>
                   </div>
                   {comment.isRewritten && (
@@ -267,8 +299,8 @@ const PostPage = () => {
                         onClick={() => setShowOriginal((m) => ({ ...m, [comment._id]: !m[comment._id] }))}
                         className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
                       >
-                        <FaInfoCircle /> 原评论语气不友善，内容经 AI 润色后展示
-                        {showOriginal[comment._id] ? '（收起原文）' : '（查看原文）'}
+                        <FaInfoCircle /> {t('post.rewritten')}
+                        {showOriginal[comment._id] ? t('post.hideOriginal') : t('post.showOriginal')}
                       </button>
                       {showOriginal[comment._id] && (
                         <blockquote className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400 border-l-2 border-neutral-300 dark:border-neutral-700 pl-2">
@@ -299,14 +331,14 @@ onClick={() => {
                       }}
                       className="inline-flex items-center gap-1.5 font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors"
                     >
-                      <FaComment /> 回复
+                      <FaComment /> {t('post.reply')}
                     </button>
                   </div>
 
                   {replyTo === comment._id && (
                     <form onSubmit={(e) => handleReplySubmit(e, comment._id)} className="mt-4 space-y-3">
                       <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: 'auto', width: 1, height: 1, overflow: 'hidden' }}>
-                        <label htmlFor={`hp_website_reply_${comment._id}`}>网站 (请勿填写)</label>
+                        <label htmlFor={`hp_website_reply_${comment._id}`}>{t('post.hpWebsite')}</label>
                         <input
                           type="text"
                           id={`hp_website_reply_${comment._id}`}
@@ -320,7 +352,7 @@ onClick={() => {
                       <textarea
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
-                        placeholder={`回复 ${comment.author?.name || comment.author?.username}…`}
+                        placeholder={t('post.replyPlaceholder', { name: comment.author?.name || comment.author?.username })}
                         className="input-field min-h-24 resize-y"
                         rows={3}
                         maxLength={COMMENT_MAX}
@@ -335,8 +367,8 @@ onClick={() => {
                           onExpire={() => setTurnstileToken('')}
                         />
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => setReplyTo(null)} className="btn btn-secondary">取消</button>
-                          <button type="submit" disabled={!replyText.trim() || replyText.length > COMMENT_MAX} className="btn btn-primary">发送</button>
+                          <button type="button" onClick={() => setReplyTo(null)} className="btn btn-secondary">{t('post.cancel')}</button>
+                          <button type="submit" disabled={!replyText.trim() || replyText.length > COMMENT_MAX} className="btn btn-primary">{t('post.send')}</button>
                         </div>
                       </div>
                     </form>
@@ -374,10 +406,10 @@ onClick={() => {
   if (error || !post) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-3">文章不存在或已被删除</h2>
-        <p className="text-neutral-500 dark:text-neutral-400 mb-6">{error || '抱歉，我们无法找到您请求的文章。'}</p>
+        <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-3">{t('post.notFound')}</h2>
+        <p className="text-neutral-500 dark:text-neutral-400 mb-6">{error || t('post.notFoundSub')}</p>
         <Link to="/" className="btn btn-primary">
-          <FaArrowLeft /> 返回首页
+          <FaArrowLeft /> {t('post.home')}
         </Link>
       </div>
     );
@@ -392,7 +424,7 @@ onClick={() => {
         to="/"
         className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white mb-8 transition-colors"
       >
-        <FaArrowLeft className="text-xs" /> 返回文章列表
+        <FaArrowLeft className="text-xs" /> {t('post.back')}
       </Link>
 
       <article>
@@ -406,7 +438,7 @@ onClick={() => {
           )}
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-neutral-900 dark:text-white leading-tight">
-            {post.title}
+            {trPost?.title || post.title}
           </h1>
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
@@ -433,10 +465,10 @@ onClick={() => {
             {isAdmin && (
               <div className="flex gap-2">
                 <Link to={`/edit/${post._id}`} className="btn btn-secondary">
-                  <FaEdit /> 编辑
+                  <FaEdit /> {t('post.edit')}
                 </Link>
                 <button onClick={handleDelete} className="btn btn-danger">
-                  <FaTrash /> 删除
+                  <FaTrash /> {t('post.delete')}
                 </button>
               </div>
             )}
@@ -451,16 +483,16 @@ onClick={() => {
 
         <div className="markdown-content prose prose-lg prose-neutral dark:prose-invert max-w-none">
           <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
-            {post.content}
+            {trPost?.content || post.content}
           </ReactMarkdown>
         </div>
 
         <div className="mt-12 pt-6 border-t border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-6 text-sm text-neutral-500 dark:text-neutral-400">
-            <span className="flex items-center gap-2"><FaEye /> {post.viewCount || 0} 阅读</span>
-            <span className="flex items-center gap-2"><FaComment /> {comments.length} 评论</span>
+            <span className="flex items-center gap-2"><FaEye /> {post.viewCount || 0} {t('post.views')}</span>
+            <span className="flex items-center gap-2"><FaComment /> {comments.length} {t('post.comments')}</span>
             <span className="flex items-center gap-2">
-              {isPostLiked ? <FaHeart className="text-red-600 dark:text-red-400" /> : <FaRegHeart />} {postLikeCount} 点赞
+              {isPostLiked ? <FaHeart className="text-red-600 dark:text-red-400" /> : <FaRegHeart />} {postLikeCount} {t('post.likes')}
             </span>
           </div>
           <button
@@ -473,14 +505,14 @@ onClick={() => {
             }`}
           >
             {isPostLiked ? <FaHeart /> : <FaRegHeart />}
-            {isPostLiked ? '已点赞' : '点赞'}
+            {isPostLiked ? t('post.liked') : t('post.like')}
           </button>
         </div>
       </article>
 
       <section className="mt-16">
         <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-6 flex items-center gap-2">
-          <FaComment /> 评论
+          <FaComment /> {t('post.comments')}
           <span className="text-base font-normal text-neutral-500 dark:text-neutral-400">({comments.length})</span>
         </h2>
 
@@ -490,7 +522,7 @@ onClick={() => {
               <Avatar user={user} size="md" />
               <div className="flex-1 space-y-3">
                 <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: 'auto', width: 1, height: 1, overflow: 'hidden' }}>
-                  <label htmlFor="hp_website_main">网站 (请勿填写)</label>
+                  <label htmlFor="hp_website_main">{t('post.hpWebsite')}</label>
                   <input
                     type="text"
                     id="hp_website_main"
@@ -504,7 +536,7 @@ onClick={() => {
                 <textarea
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
-                  placeholder={`留下你的想法…（最多 ${COMMENT_MAX} 字）`}
+                  placeholder={t('post.placeholder', { max: COMMENT_MAX })}
                   className="input-field min-h-28 resize-y"
                   rows={4}
                   maxLength={COMMENT_MAX}
@@ -525,7 +557,7 @@ onClick={() => {
                     disabled={submittingComment || !commentText.trim() || commentOver}
                     className="btn btn-primary"
                   >
-                    {submittingComment ? '发布中…' : '发布评论'}
+                    {submittingComment ? t('post.publishing') : t('post.publishComment')}
                   </button>
                 </div>
               </div>
@@ -533,15 +565,15 @@ onClick={() => {
           </form>
         ) : (
           <div className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/50 p-8 text-center mb-8">
-            <p className="text-neutral-600 dark:text-neutral-400 mb-4">登录后即可发表评论</p>
-            <Link to="/login" className="btn btn-primary">前往登录</Link>
+            <p className="text-neutral-600 dark:text-neutral-400 mb-4">{t('post.loginCta')}</p>
+            <Link to="/login" className="btn btn-primary">{t('post.goLogin')}</Link>
           </div>
         )}
 
         {comments.length === 0 ? (
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 py-12 text-center">
-            <h3 className="text-base font-medium text-neutral-500 dark:text-neutral-400">暂无评论</h3>
-            {user && <p className="mt-1 text-sm text-neutral-400">成为第一个评论的人吧</p>}
+            <h3 className="text-base font-medium text-neutral-500 dark:text-neutral-400">{t('post.noComments')}</h3>
+            {user && <p className="mt-1 text-sm text-neutral-400">{t('post.firstComment')}</p>}
           </div>
         ) : (
           renderComments()

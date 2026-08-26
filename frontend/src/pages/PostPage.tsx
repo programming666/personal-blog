@@ -290,7 +290,13 @@ const PostPage = () => {
                       {liked ? <FaHeart /> : <FaRegHeart />} {count}
                     </button>
                     <button
-                      onClick={() => setReplyTo(replyTo === comment._id ? null : comment._id)}
+onClick={() => {
+                        if (!user) {
+                          navigate('/login', { state: { from: `/posts/${id}` } });
+                          return;
+                        }
+                        setReplyTo(replyTo === comment._id ? null : comment._id);
+                      }}
                       className="inline-flex items-center gap-1.5 font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors"
                     >
                       <FaComment /> 回复

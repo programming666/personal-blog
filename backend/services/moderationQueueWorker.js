@@ -2,6 +2,7 @@
 // AI 配额恢复后,pending 评论会自动被审完
 const Comment = require('../models/Comment');
 const { moderateComment, hasCapacity, applyVerdictToComment } = require('./aiModeration');
+const { prewarmTranslations } = require('./aiTranslate');
 
 const TICK_INTERVAL = 30 * 1000; // 30s
 const BATCH_MAX = 20; // 每轮最多处理 20 条,避免独占事件循环
@@ -44,6 +45,10 @@ const tick = async () => {
 
       applyVerdictToComment(next, verdict, next.content);
       await next.save();
+      // M2+: approved 后异步预热译文
+      if (verdict && verdict.status === 'approved') {
+        prewarmTranslations({ sourceType: 'comment', sourceId: next._id }, { body: next.content }).catch(() => {});
+      }
       processed += 1;
     }
   } catch (err) {

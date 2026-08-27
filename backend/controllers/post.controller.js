@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
-const { invalidateSource } = require('../services/aiTranslate');
+const { invalidateSource, prewarmTranslations } = require('../services/aiTranslate');
 // L3: 列表接口只接受声明的查询参数(page/limit/tag),未知参数(?status=draft 等)一律丢弃,
 // 避免枚举探测出隐藏行为 — 接口对参数白名单的态度是:不声明的就不生效。
 function pickQuery(req, allowed) {
@@ -96,6 +96,8 @@ exports.createPost = async (req, res) => {
     }
 
     const post = await Post.create(postData);
+    // 发布后异步预热译文(只预热与原文不同的另一种语言,原文已是目标语言则 needed:false)
+    prewarmTranslations({ sourceType: 'post', sourceId: post._id }, { title: post.title, body: post.content || '' }).catch(() => {});
     res.status(201).json({ success: true, data: post });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error creating post', error: error.message });
@@ -123,8 +125,9 @@ exports.updatePost = async (req, res) => {
 
     }
 
-    // 内容已变更,失效旧译文缓存,下次访问按需重译
+    // 内容已变更,失效旧译文缓存 + 异步预热新译文
     await invalidateSource('post', post._id);
+    prewarmTranslations({ sourceType: 'post', sourceId: post._id }, { title: post.title, body: post.content || '' }).catch(() => {});
     res.status(200).json({ success: true, data: post });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error updating post', error: error.message });

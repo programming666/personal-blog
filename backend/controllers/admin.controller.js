@@ -3,7 +3,7 @@ const Post = require('../models/Post');
 const Comment = require('../models/Comment');
 const Announcement = require('../models/Announcement');
 const Translation = require('../models/Translation');
-const { translateSingle, detectLang } = require('../services/aiTranslate');
+const { translateSingle, detectLang, prewarmTranslations } = require('../services/aiTranslate');
 const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
 const { getQuotaSnapshot, moderateComment, testConnection, applyVerdictToComment } = require('../services/aiModeration');
@@ -425,6 +425,10 @@ exports.moderateCommentManual = async (req, res) => {
     comment.moderationModel = 'manual';
     comment.moderationRetries = 0;
     await comment.save();
+    // M2+: approved 后异步预热译文,公开 GET 命中缓存不调 AI
+    if (status === 'approved') {
+      prewarmTranslations({ sourceType: 'comment', sourceId: comment._id }, { body: comment.content }).catch(() => {});
+    }
     res.status(200).json({ success: true, data: comment });
   } catch (error) {
     res.status(500).json({ success: false, message: '服务器内部错误' });

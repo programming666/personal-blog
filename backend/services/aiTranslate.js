@@ -173,4 +173,60 @@ async function invalidateSource(sourceType, sourceId) {
   await Translation.deleteMany({ sourceType, sourceId: String(sourceId) });
 }
 
-module.exports = { translateBatch, translateSingle, detectLang, invalidateSource };
+
+/**
+
+ * 审批通过后异步预热译文(写入 Translation 集合,后续公开 GET 直接命中缓存,不再实时调 AI)。
+
+ * 仅翻译『与原文不同的另一种语言』;若原文已是目标语言则不调用 AI(返回 needed:false)。
+
+ * 失败静默,不影响主流程;并发去重复用 inflight Map。
+
+ * @param {{sourceType: 'post'|'comment'|'announcement', sourceId: string|object, fields: string[], text?: string}} opts
+
+ * @param {Record<string,string>} fieldTexts 各 field 的原文(必传,避免预热时还要回 DB 拉取)
+
+ * @returns {Promise<void>}
+
+ */
+async function prewarmTranslations({ sourceType, sourceId }, fieldTexts) {
+  try {
+    const Translation = require('../models/Translation');
+    const id = String(sourceId);
+    for (const field of Object.keys(fieldTexts || {})) {
+      const text = fieldTexts[field];
+      if (!text || typeof text !== 'string') continue;
+      const originLang = detectLang(text);
+      const targetLang = originLang === 'zh' ? 'en' : 'zh';
+      // 已有缓存就跳过(防重复预热)
+      const existing = await Translation.findOne({ sourceType, sourceId: id, field, lang: targetLang }).lean();
+      if (existing && existing.translatedText) continue;
+      // 防并发重复:同一 (type, id, field, lang) inflight 命中后直接共享 Promise
+      const key = `${sourceType}:${id}:${field}:${targetLang}`;
+      if (inflight.has(key)) continue;
+      const p = (async () => {
+        try {
+          const translated = await translateSingle(text, targetLang);
+          await Translation.updateOne(
+            { sourceType, sourceId: id, field, lang: targetLang },
+            { $set: { sourceType, sourceId: id, field, lang: targetLang, translatedText: translated, status: 'done' } },
+            { upsert: true }
+          );
+        } catch (e) {
+          await Translation.updateOne(
+            { sourceType, sourceId: id, field, lang: targetLang },
+            { $set: { sourceType, sourceId: id, field, lang: targetLang, status: 'failed', error: String(e && e.message || e).slice(0, 200) } },
+            { upsert: true }
+          );
+        } finally {
+          inflight.delete(key);
+        }
+      })();
+      inflight.set(key, p);
+    }
+  } catch (e) {
+    // 预热失败绝不影响主流程
+  }
+}
+
+module.exports = { translateBatch, translateSingle, detectLang, invalidateSource, prewarmTranslations };

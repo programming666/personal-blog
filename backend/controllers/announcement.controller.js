@@ -1,5 +1,5 @@
 const Announcement = require('../models/Announcement');
-const { invalidateSource } = require('../services/aiTranslate');
+const { invalidateSource, prewarmTranslations } = require('../services/aiTranslate');
 
 exports.listAnnouncements = async (req, res) => {
   try {
@@ -76,6 +76,8 @@ exports.createAnnouncement = async (req, res) => {
       isPublished: isPublished !== false,
       pinned: !!pinned
     });
+    // 发布后异步预热译文
+    prewarmTranslations({ sourceType: 'announcement', sourceId: announcement._id }, { title: announcement.title, body: announcement.content }).catch(() => {});
     res.status(201).json({ success: true, data: announcement });
   } catch (error) {
     res.status(500).json({ success: false, message: '服务器内部错误' });
@@ -98,8 +100,9 @@ exports.updateAnnouncement = async (req, res) => {
 
     }
 
-    // 内容已变更,失效旧译文缓存,下次访问按需重译
+    // 内容已变更,失效旧译文缓存 + 异步预热新译文
     await invalidateSource('announcement', announcement._id);
+    prewarmTranslations({ sourceType: 'announcement', sourceId: announcement._id }, { title: announcement.title, body: announcement.content || '' }).catch(() => {});
     res.status(200).json({ success: true, data: announcement });
   } catch (error) {
     res.status(500).json({ success: false, message: '服务器内部错误' });

@@ -1,8 +1,7 @@
 const Comment = require('../models/Comment');
 const Post = require('../models/Post');
 const { moderateComment, applyVerdictToComment } = require('../services/aiModeration');
-const { invalidateSource } = require('../services/aiTranslate');
-
+const { invalidateSource, prewarmTranslations } = require('../services/aiTranslate');
 exports.createComment = async (req, res) => {
   try {
     if (req.user.canComment === false) {
@@ -58,6 +57,9 @@ exports.createComment = async (req, res) => {
     // 语气不友善且有实质内容时,applyVerdictToComment 会用 AI 重写版替换 content 并保留原文
     applyVerdictToComment(comment, verdict, content);
     if (comment.isModified()) await comment.save();
+await comment.populate('author', 'username name avatar role');
+    // M2+: approved 后异步预热译文,公开 GET 直接命中缓存不调 AI
+    prewarmTranslations({ sourceType: 'comment', sourceId: comment._id }, { body: comment.content }).catch(() => {});
 
     await comment.populate('author', 'username name avatar role');
 

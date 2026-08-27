@@ -18,11 +18,12 @@ app.disable('x-powered-by');
 // - frame-ancestors 'none': iframe 嵌入 /admin 与登录页一律拒绝
 const CSP_HEADER = [
   "default-src 'self'",
-  "script-src 'self' https://challenges.cloudflare.com",
+  // Cloudflare Turnstile (前端评论区人机验证) + Cloudflare Web Analytics (beacon.min.js)
+  "script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://challenges.cloudflare.com",
+  "connect-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloudflareinsights.com",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "base-uri 'self'",

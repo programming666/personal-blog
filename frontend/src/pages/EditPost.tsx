@@ -1,11 +1,11 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { postsAPI } from '../services/api';
+import { postsAPI, adminAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MarkdownEditorNew from '../components/MarkdownEditorNew';
 import TurnstileWidget from '../components/TurnstileWidget';
-import { FaArrowLeft, FaSave, FaEye, FaTrash } from 'react-icons/fa';
+import { FaArrowLeft, FaSave, FaEye, FaTrash, FaImage } from 'react-icons/fa';
 import '../styles/edit-post.css';
 
 const EditPost = () => {
@@ -18,8 +18,10 @@ const EditPost = () => {
     content: '',
     tags: '',
     status: 'published',
-    thumbnail: ''
+    thumbnail: '',
+    images: []  // 文章配图 URL 数组
   });
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [previewMode, setPreviewMode] = useState(false);
@@ -64,7 +66,8 @@ const EditPost = () => {
         content: post.content,
         tags: tagsString,
         status: post.status,
-        thumbnail: post.thumbnail || ''
+        thumbnail: post.thumbnail || '',
+        images: Array.isArray(post.images) ? post.images : []
       });
 
       if (post.thumbnail) {
@@ -97,6 +100,37 @@ const EditPost = () => {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // 处理配图上传(支持多选,逐个上传)
+  const handleGalleryChange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploadingImages(true);
+    setError(null);
+    try {
+      const urls = [];
+      for (const file of files) {
+        const res = await adminAPI.uploadPostImage(file);
+        if (res.data && res.data.success && res.data.url) {
+          urls.push(res.data.url);
+        }
+      }
+      setFormData(prev => ({ ...prev, images: [...(prev.images || []), ...urls] }));
+    } catch (err) {
+      setError(err.response?.data?.message || '配图上传失败,请稍后再试');
+    } finally {
+      setUploadingImages(false);
+      e.target.value = '';
+    }
+  };
+
+  // 删除某张已上传的配图
+  const handleRemoveGalleryImage = (idx) => {
+    setFormData(prev => ({
+      ...prev,
+      images: (prev.images || []).filter((_, i) => i !== idx)
+    }));
   };
 
   // 处理表单提交
@@ -240,6 +274,14 @@ const EditPost = () => {
               />
             )}
 
+            {formData.images && formData.images.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', margin: '12px 0' }}>
+                {formData.images.map((url, idx) => (
+                  <img key={idx} src={url} alt={`配图 ${idx + 1}`} style={{ maxWidth: '240px', borderRadius: '4px' }} />
+                ))}
+              </div>
+            )}
+
             {formData.summary && (
               <div className="preview-summary">
                 {formData.summary}
@@ -336,6 +378,48 @@ const EditPost = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* 文章配图(支持多张,最多 10 张) */}
+            <div className="form-group">
+              <label className="form-label">文章配图</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-start' }}>
+                {(formData.images || []).map((url, idx) => (
+                  <div key={idx} style={{ position: 'relative', width: '140px', height: '100px', borderRadius: '6px', overflow: 'hidden', border: '1px solid #ddd' }}>
+                    <img src={url} alt={`配图 ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveGalleryImage(idx)}
+                      style={{ position: 'absolute', top: '4px', right: '4px', width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      aria-label="删除配图"
+                    >
+                      <FaTrash size={11} />
+                    </button>
+                  </div>
+                ))}
+                <label htmlFor="gallery-upload-edit" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '140px', height: '100px', border: '2px dashed #ccc', borderRadius: '6px', cursor: uploadingImages ? 'not-allowed' : 'pointer', color: '#666', fontSize: '13px' }}>
+                  {uploadingImages ? (
+                    <span className="loading-spinner" style={{ width: '20px', height: '20px' }}></span>
+                  ) : (
+                    <>
+                      <FaImage size={20} style={{ marginBottom: '4px' }} />
+                      <span>添加配图</span>
+                    </>
+                  )}
+                  <input
+                    id="gallery-upload-edit"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleGalleryChange}
+                    disabled={uploadingImages}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+                可上传多张(JPG/PNG/WebP,单张 ≤5MB),用于文章正文里配图;最多 10 张。
+              </p>
             </div>
 
             {/* Markdown 编辑器 */}

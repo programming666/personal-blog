@@ -82,6 +82,7 @@ app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/announcements', require('./routes/announcement.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
 app.use('/api/translate', require('./routes/translate.routes'));
+app.use('/api/uploads', require('./routes/upload.routes'));
 
 // 仅在 SERVE_FRONTEND=true 时,把前端 dist/ 也由 Express 服务
 if (process.env.SERVE_FRONTEND === 'true') {

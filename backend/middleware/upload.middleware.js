@@ -24,14 +24,56 @@ const upload = multer({
 });
 
 const processImage = async (req, res, next) => {
-  if (!req.file) {
+  // 兼容 single('thumbnail') 与 fields([{name:'thumbnail', maxCount:1},...]) 两种用法
+  const file = req.file || (req.files && req.files.thumbnail && req.files.thumbnail[0]);
+  if (!file) {
     return next();
   }
   try {
     const filename = `thumbnail-${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
     const filepath = path.join(uploadDir, filename);
-    await sharp(req.file.buffer)
+    await sharp(file.buffer)
       .resize(800, 600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toFile(filepath);
+    file.filename = filename;
+    file.path = `uploads/${filename}`;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const processGalleryImages = async (req, res, next) => {
+  const files = (req.files && req.files.images) || [];
+  if (!files.length) return next();
+  try {
+    const out = [];
+    for (const file of files) {
+      const filename = `gallery-${Date.now()}-${Math.round(Math.random() * 1e9)}-${Math.round(Math.random() * 1e4)}.jpg`;
+      const filepath = path.join(uploadDir, filename);
+      await sharp(file.buffer)
+        .resize(1600, 1200, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toFile(filepath);
+      out.push(`uploads/${filename}`);
+    }
+    req.galleryPaths = out;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+const processGalleryImage = async (req, res, next) => {
+  if (!req.file) {
+    return next();
+  }
+  try {
+    const filename = `gallery-${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+    const filepath = path.join(uploadDir, filename);
+    await sharp(req.file.buffer)
+      .resize(1600, 1200, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 85 })
       .toFile(filepath);
     req.file.filename = filename;
@@ -80,4 +122,4 @@ const processAvatar = async (req, res, next) => {
   }
 };
 
-module.exports = { upload, processImage, processLogo, processAvatar };
+module.exports = { upload, processImage, processGalleryImages, processGalleryImage, processLogo, processAvatar };

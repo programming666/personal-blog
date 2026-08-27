@@ -84,7 +84,15 @@ export const adminAPI = {
   getAiConfig: () => api.get('/api/admin/ai/config'),
   saveAiConfig: (data) => api.put('/api/admin/ai/config', data),
   resetAiConfig: () => api.post('/api/admin/ai/config/reset'),
-  testAiConfig: (data) => api.post('/api/admin/ai/config/test', data)
+  testAiConfig: (data) => api.post('/api/admin/ai/config/test', data),
+  // 文章配图上传(返回 { success, url, filename },url 形如 /uploads/gallery-*.jpg)
+  uploadPostImage: (file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    return api.post('/api/uploads/image', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  }
 };
 
 export const postsAPI = {

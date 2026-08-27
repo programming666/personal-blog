@@ -32,6 +32,10 @@ const PostSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  // 文章配图数组(最多 10 张,URL 形式 /uploads/<filename>)
+  images: [{
+    type: String
+  }],
   published: {
     type: Boolean,
     default: true

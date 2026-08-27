@@ -91,8 +91,20 @@ exports.createPost = async (req, res) => {
     }
 
     const postData = { ...req.body, author: req.user._id };
-    if (req.file && req.file.path) {
-      postData.thumbnail = req.file.path;
+    // 兼容 single('thumbnail') 与 fields([{name:'thumbnail', maxCount:1},...]) 两种用法
+    const thumbFile = req.file || (req.files && req.files.thumbnail && req.files.thumbnail[0]);
+    if (thumbFile && thumbFile.path) {
+      postData.thumbnail = thumbFile.path;
+    } else if (typeof req.body.thumbnail === 'string' && req.body.thumbnail.startsWith('uploads/')) {
+      // 兼容 multipart 模式下 req.body.thumbnail 已经被 multer 解析成字符串字段
+      postData.thumbnail = req.body.thumbnail;
+    }
+    // 配图(可选):若前端传了 images 数组(URL 字符串列表)直接保存;若同时通过 multipart 上传,合并
+    const bodyImages = Array.isArray(req.body.images) ? req.body.images : [];
+    if (req.galleryPaths && req.galleryPaths.length) {
+      postData.images = [...bodyImages, ...req.galleryPaths.map((p) => `/${p}`)];
+    } else if (bodyImages.length) {
+      postData.images = bodyImages;
     }
 
     const post = await Post.create(postData);
@@ -111,8 +123,18 @@ exports.updatePost = async (req, res) => {
     }
 
     const updateData = { ...req.body };
-    if (req.file && req.file.path) {
-      updateData.thumbnail = req.file.path;
+    const thumbFile = req.file || (req.files && req.files.thumbnail && req.files.thumbnail[0]);
+    if (thumbFile && thumbFile.path) {
+      updateData.thumbnail = thumbFile.path;
+    } else if (typeof req.body.thumbnail === 'string' && req.body.thumbnail.startsWith('uploads/')) {
+      updateData.thumbnail = req.body.thumbnail;
+    }
+    // 配图:前端把当前完整 images 数组传过来(可能包含新上传的 url);若同时有 multipart 上传,合并到末尾
+    const bodyImages = Array.isArray(req.body.images) ? req.body.images : undefined;
+    if (req.galleryPaths && req.galleryPaths.length) {
+      updateData.images = [...(bodyImages || []), ...req.galleryPaths.map((p) => `/${p}`)];
+    } else if (bodyImages !== undefined) {
+      updateData.images = bodyImages;
     }
 
     const post = await Post.findByIdAndUpdate(req.params.id, updateData, {

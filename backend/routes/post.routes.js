@@ -9,7 +9,7 @@ const {
   likePost
 } = require('../controllers/post.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
-const { upload, processImage } = require('../middleware/upload.middleware');
+const { upload, processImage, processGalleryImages } = require('../middleware/upload.middleware');
 const { optionalTurnstile } = require('../middleware/turnstile.middleware');
 const {
   postWriteLimiter,
@@ -32,8 +32,12 @@ router.post(
   protect,
   authorize('admin'),
   postWriteLimiter,
-  upload.single('thumbnail'),
+  upload.fields([
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'images', maxCount: 10 }
+  ]),
   processImage,
+  processGalleryImages,
   optionalTurnstile,
   createPost
 );
@@ -42,8 +46,12 @@ router.put(
   protect,
   authorize('admin'),
   postWriteLimiter,
-  upload.single('thumbnail'),
+  upload.fields([
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'images', maxCount: 10 }
+  ]),
   processImage,
+  processGalleryImages,
   updatePost
 );
 router.delete('/:id', protect, authorize('admin'), deletePost);

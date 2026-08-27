@@ -559,10 +559,56 @@ const PostPage = () => {
           </div>
         )}
 
+        {/* 文章配图(由 admin 在编辑器里上传,最多 10 张) */}
+
+        {Array.isArray(post.images) && post.images.length > 0 && (
+
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            {post.images.map((url, idx) => (
+
+              <a
+
+                key={idx}
+
+                href={url}
+
+                target="_blank"
+
+                rel="noopener noreferrer"
+
+                className="block overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800 hover:shadow-lg transition-shadow"
+
+              >
+
+                <img
+
+                  src={url}
+
+                  alt={`${post.title || 'post'} - 配图 ${idx + 1}`}
+
+                  loading="lazy"
+
+                  className="w-full h-48 object-cover hover:scale-105 transition-transform duration-300"
+
+                />
+
+              </a>
+
+            ))}
+
+          </div>
+
+        )}
+
         <div className="markdown-content prose prose-lg prose-neutral dark:prose-invert max-w-none">
+
           <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+
             {trPost?.content || post.content}
+
           </ReactMarkdown>
+
         </div>
         {trPost?.content && trPost.content !== post.content && needsTranslation(post.content, lang) && (
           <TranslatedBadge />

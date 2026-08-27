@@ -25,6 +25,7 @@ const CSP_HEADER = [
   "font-src 'self' data:",
   "connect-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloudflareinsights.com",
   "object-src 'none'",
+  "frame-src https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'"

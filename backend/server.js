@@ -19,7 +19,7 @@ app.disable('x-powered-by');
 const CSP_HEADER = [
   "default-src 'self'",
   // Cloudflare Turnstile (前端评论区人机验证) + Cloudflare Web Analytics (beacon.min.js)
-  "script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",

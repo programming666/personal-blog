@@ -152,7 +152,6 @@ const HomePage = () => {
                     const tr = trTitles[post._id];
                     const rawSummary = post.summary || (post.content ? post.content.substring(0, 140) + '…' : '');
                     const translated = (!!tr?.title && tr.title !== post.title) || (!!tr?.summary && tr.summary !== rawSummary);
-                    console.error('BADGE_DEBUG', JSON.stringify({ id: post._id, postTitle: post.title, tr, translated }));
                     return translated ? <TranslatedBadge /> : null;
                   })()}
 

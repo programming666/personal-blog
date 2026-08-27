@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { getLang, t } from '../i18n';
 import { displayText, needsTranslation } from '../translate';
 import TranslatedBadge from '../components/TranslatedBadge';
+import { renderMarkdownImg } from '../utils/markdownImg.jsx';
 import { FaEdit, FaTrash, FaEye, FaComment, FaArrowLeft, FaUser, FaCalendarAlt, FaHeart, FaRegHeart, FaInfoCircle } from 'react-icons/fa';
 import TurnstileWidget from '../components/TurnstileWidget';
 
@@ -330,7 +331,7 @@ const PostPage = () => {
             ) : (
               <>
                 <div className="mt-2 prose prose-sm prose-neutral dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
-                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ img: renderMarkdownImg }}>
                     {trComments[comment._id] || comment.content}
                   </ReactMarkdown>
                 </div>
@@ -603,7 +604,7 @@ const PostPage = () => {
 
         <div className="markdown-content prose prose-lg prose-neutral dark:prose-invert max-w-none">
 
-          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ img: renderMarkdownImg }}>
 
             {trPost?.content || post.content}
 

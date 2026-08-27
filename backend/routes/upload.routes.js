@@ -20,9 +20,11 @@ router.post(
         message: '请选择要上传的图片文件'
       });
     }
+    const origin = `${req.protocol}://${req.get('host')}`;
     res.json({
       success: true,
       url: `/uploads/${req.file.filename}`,
+      fullUrl: `${origin}/uploads/${req.file.filename}`,
       filename: req.file.filename
     });
   }

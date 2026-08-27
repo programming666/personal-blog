@@ -113,7 +113,10 @@ const EditPost = () => {
       for (const file of files) {
         const res = await adminAPI.uploadPostImage(file);
         if (res.data && res.data.success && res.data.url) {
-          urls.push(res.data.url);
+          const fullUrl = res.data.fullUrl || res.data.url;
+          urls.push(fullUrl);
+          // 上传成功后自动复制完整 URL 到剪贴板,方便作者在文章任意位置复用
+          try { await navigator.clipboard.writeText(fullUrl); } catch (_) {}
         }
       }
       setFormData(prev => ({ ...prev, images: [...(prev.images || []), ...urls] }));

@@ -270,8 +270,8 @@
   margin-bottom: 20px;
 }
 
-/* 暗色模式支持 */
-@media (prefers-color-scheme: dark) {
+/* 暗色模式支持 — 使用 :root.dark 匹配 Tailwind 的 dark 类(而不是 prefers-color-scheme,这样 navbar 切换立即生效) */
+:root.dark {
   .edit-post-container {
     background: #1a1a1a;
     color: #e4e4e4;
@@ -299,6 +299,13 @@
     color: #e4e4e4;
   }
 
+  .form-input:focus,
+  .form-textarea:focus,
+  .form-select:focus {
+    background: #3a3a3a;
+    border-color: #007bff;
+  }
+
   .form-label {
     color: #e4e4e4;
   }
@@ -315,6 +322,87 @@
     background: #58151c;
     color: #f5c6cb;
   }
+}
+
+/* 同时保留 prefers-color-scheme 自动跟随(用户选 'system' 时生效) */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .edit-post-container {
+    background: #1a1a1a;
+    color: #e4e4e4;
+  }
+  :root:not(.light) .edit-post-card {
+    background: #2d2d2d;
+    border-color: #404040;
+  }
+  :root:not(.light) .form-input,
+  :root:not(.light) .form-textarea,
+  :root:not(.light) .form-select {
+    background: #333;
+    border-color: #555;
+    color: #e4e4e4;
+  }
+  :root:not(.light) .form-label {
+    color: #e4e4e4;
+  }
+}
+
+/* 选中文高亮增强 — 默认浅蓝,深色模式深蓝,边框加深便于辨认 */
+::selection {
+  background: #93c5fd;
+  color: #0c1424;
+}
+::-moz-selection {
+  background: #93c5fd;
+  color: #0c1424;
+}
+:root.dark ::selection {
+  background: #2563eb;
+  color: #ffffff;
+}
+:root.dark ::-moz-selection {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+/* 文章编辑器深色适配 — react-markdown-editor-lite 的内部 DOM */
+:root.dark .markdown-editor-wrapper .rc-md-editor {
+  background: #0d1117;
+  color: #e6edf3;
+  border-color: #30363d;
+}
+:root.dark .markdown-editor-wrapper .rc-md-editor .rc-md-navigation {
+  background: #161b22;
+  border-color: #30363d;
+  color: #c9d1d9;
+}
+:root.dark .markdown-editor-wrapper .rc-md-editor .rc-md-navigation .button-wrap .button {
+  color: #c9d1d9;
+}
+:root.dark .markdown-editor-wrapper .rc-md-editor .rc-md-navigation .button-wrap .button:hover {
+  background: #21262d;
+  color: #f0f6fc;
+}
+:root.dark .markdown-editor-wrapper .rc-md-editor .editor-container .sec-md .input {
+  background: #0d1117;
+  color: #e6edf3;
+  -webkit-text-fill-color: #e6edf3;
+  caret-color: #e6edf3;
+}
+:root.dark .markdown-editor-wrapper .rc-md-editor .editor-container .sec-html {
+  background: #0d1117;
+}
+:root.dark .markdown-editor-wrapper .rc-md-editor .editor-container .sec-md,
+:root.dark .markdown-editor-wrapper .rc-md-editor .editor-container .sec-html {
+  border-color: #30363d;
+}
+:root.dark .markdown-editor-wrapper .rc-md-editor::after {
+  border-color: #30363d;
+}
+
+/* 编辑器内 textarea 的 placeholder */
+:root.dark .markdown-editor-wrapper .rc-md-editor .sec-md .input::placeholder,
+:root.dark .markdown-editor-wrapper .rc-md-editor textarea::placeholder {
+  color: #6e7681;
 }
 
 /* 响应式设计 */

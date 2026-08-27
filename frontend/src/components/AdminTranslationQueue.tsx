@@ -32,19 +32,19 @@ const AdminTranslationQueue = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  // 收集一条内容中所有「需要译文但尚未翻译」的目标
+  // 收集一条内容中所有「需要译文但尚未翻译」的目标(后端字段名 needZh/needEn,首字母小写)
   const collectMissing = (item) => {
     const targets = [];
     for (const f of item.fields) {
       for (const lang of ['zh', 'en']) {
-        if (f[`need${lang.toUpperCase()}`] && !f[lang]) {
+        const need = lang === 'zh' ? f.needZh : f.needEn;
+        if (need && !f[lang]) {
           targets.push({ sourceType: item.sourceType, sourceId: item.sourceId, field: f.field, lang, text: f.source });
         }
       }
     }
     return targets;
   };
-
   const runTargets = async (targets) => {
     if (!targets.length) return;
     setRunning(true);

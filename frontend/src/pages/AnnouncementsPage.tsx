@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { announcementsAPI } from '../services/api';
 import { getLang, t } from '../i18n';
-import { translateTexts } from '../translate';
+import { displayText } from '../translate';
 import { FaThumbtack, FaBullhorn, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -41,21 +41,23 @@ const AnnouncementsPage = () => {
     window.scrollTo(0, 0);
   }, [page]);
 
-  // AI 翻译:按站点语言把非目标语言内容批量翻译(缓存命中直接返回)
+  // AI 翻译:按站点语言拉取公告标题/内容译文;原文已含目标语言直接展示原文
   useEffect(() => {
     if (!items.length) return;
     let cancelled = false;
-    const texts = items.flatMap((it) => [it.title, it.content]);
-    translateTexts(texts)
-      .then((translations) => {
-        if (cancelled) return;
-        const map = {};
-        items.forEach((it, i) => {
-          map[it._id] = { title: translations[i * 2], content: translations[i * 2 + 1] };
-        });
-        setTrMap(map);
-      })
-      .catch(() => {});
+    (async () => {
+      const map = {};
+      await Promise.all(
+        items.map(async (it) => {
+          const [title, content] = await Promise.all([
+            displayText('announcement', it._id, 'title', it.title),
+            displayText('announcement', it._id, 'body', it.content),
+          ]);
+          if (!cancelled) map[it._id] = { title, content };
+        })
+      );
+      if (!cancelled) setTrMap(map);
+    })();
     return () => { cancelled = true; };
   }, [items, lang]);
 

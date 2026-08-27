@@ -1,95 +1,54 @@
-// 内容翻译前端助手:localStorage 缓存(键=目标语言+文本 hash),未命中才调后端 AI 翻译。
-// 双向:zh 界面把非中文(如英文评论)译成简体中文;en 界面把中文译成英文。已是目标语言的内容原样返回。
-// 失败时回退原文(渐进增强,翻译不是硬依赖)。
+// 内容翻译前端助手:译文已持久化到后端 Translation 集合(直接查库,不再用 localStorage 缓存)。
+// - detectLang:判定文本语言(含中文 → zh,否则 en)
+// - fetchTranslation:拉某条内容某字段的译文;原文已是目标语言不调 API;失败回退原文。
 import { translateAPI } from './services/api';
 import { getLang } from './i18n';
 
-const CACHE_PREFIX = 'tr:';
-const MAX_ENTRIES = 400;
-
-// djb2 风格短 hash,足以区分缓存键
-const hash = (s: string): string => {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) {
-    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  }
-  return (h >>> 0).toString(36);
-};
-
-const cacheKey = (target: string, text: string) => `${CACHE_PREFIX}${target}:${hash(text)}`;
-
-const trimCache = () => {
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith(CACHE_PREFIX)) keys.push(k);
-    }
-    if (keys.length > MAX_ENTRIES) {
-      // 简单清掉最旧的一半(不精确 LRU,个人站足够)
-      const toRemove = keys.sort().slice(0, Math.floor(keys.length / 2));
-      toRemove.forEach((k) => localStorage.removeItem(k));
-    }
-  } catch {
-    /* ignore */
-  }
-};
-
 // 是否含中文字符(判定「文本已经是目标语言」的粗筛)
-const hasCJK = (s: string): boolean => /[\u4e00-\u9fff]/.test(s);
+export const hasCJK = (s: string): boolean => /[\u4e00-\u9fff]/.test(s || '');
+
+export const detectLang = (s: string): 'zh' | 'en' => (hasCJK(s) ? 'zh' : 'en');
 
 /**
- * 批量翻译文本。target 缺省时按当前站点语言。
- * 只翻译「还不是目标语言」的文本:zh 目标翻非中文;en 目标翻中文。
+ * 拉取某条内容的译文(按内容 id + 字段 + 目标语言)。
+ * @param sourceType 'post' | 'comment' | 'announcement'
+ * @param sourceId 内容 ObjectId
+ * @param field 'title' | 'body'
+ * @param target 目标语言,缺省按当前站点语言
+ * @returns 译文;原文已含目标语言或获取失败时返回 null(调用方回退原文)
  */
-export async function translateTexts(texts: string[], target?: 'zh' | 'en'): Promise<string[]> {
+export async function fetchTranslation(
+  sourceType: 'post' | 'comment' | 'announcement',
+  sourceId: string,
+  field: 'title' | 'body',
+  target?: 'zh' | 'en'
+): Promise<string | null> {
   const lang = (target ?? getLang()) as 'zh' | 'en';
-
-  const results: string[] = new Array(texts.length);
-  const missing: number[] = [];
-  texts.forEach((text, i) => {
-    const s = typeof text === 'string' ? text : '';
-    // 已是目标语言:zh 目标下中文原样;en 目标下英文原样(不重复翻译、不浪费配额)
-    if ((lang === 'zh' && hasCJK(s)) || (lang === 'en' && !hasCJK(s))) {
-      results[i] = s;
-      return;
-    }
-    try {
-      const cached = localStorage.getItem(cacheKey(lang, s));
-      if (cached !== null) {
-        results[i] = cached;
-        return;
-      }
-    } catch {
-      /* ignore */
-    }
-    missing.push(i);
-  });
-
-
-  if (missing.length > 0) {
-    try {
-      const resp = await translateAPI.batch(
-        missing.map((i) => texts[i]),
-        lang
-      );
-      const translations: string[] = resp.data?.translations ?? [];
-      translations.forEach((tr, j) => {
-        const idx = missing[j];
-        results[idx] = tr;
-        if (tr && tr !== texts[idx]) {
-          try {
-            localStorage.setItem(cacheKey(lang, texts[idx]), tr);
-            trimCache();
-          } catch {
-            /* ignore */
-          }
-        }
-      });
-    } catch {
-      /* 网络/后端失败 → 保持原文 */
-    }
+  try {
+    const res = await translateAPI.get(sourceType, sourceId, field, lang);
+    return res?.data?.text ?? null;
+  } catch {
+    return null;
   }
+}
 
-  return texts.map((_, i) => (results[i] === undefined ? texts[i] : results[i]));
+/** 目标语言是否等于内容语言:是 → 不需要译文 */
+export const needsTranslation = (text: string | undefined | null, target?: 'zh' | 'en'): boolean => {
+  const lang = (target ?? getLang()) as 'zh' | 'en';
+  return !!text && !!text.trim() && detectLang(text) !== lang;
+};
+
+/**
+ * 取「展示用文本」:需要翻译则请求译文,已含目标语言或失败时回退原文。
+ */
+export async function displayText(
+  sourceType: 'post' | 'comment' | 'announcement',
+  sourceId: string,
+  field: 'title' | 'body',
+  original: string,
+  target?: 'zh' | 'en'
+): Promise<string> {
+  if (!needsTranslation(original, target)) return original;
+  const translation = await fetchTranslation(sourceType, sourceId, field, target);
+  return translation ?? original;
 }

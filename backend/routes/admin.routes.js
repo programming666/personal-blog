@@ -24,8 +24,11 @@ const {
   runModerationTick,
   getAiConfig,
   saveAiConfig,
+  aJs,
   resetAiConfig,
-  testAiConfig
+  testAiConfig,
+  getTranslationQueue,
+  runTranslationQueue
 } = require('../controllers/admin.controller');
 const { protect, authorize } = require('../middleware/auth.middleware');
 const { adminLoginLimiter, adminTwoFactorLimiter } = require('../middleware/rateLimit.middleware');
@@ -77,5 +80,9 @@ router.get('/ai/config', protect, authorize('admin'), getAiConfig);
 router.put('/ai/config', protect, authorize('admin'), saveAiConfig);
 router.post('/ai/config/reset', protect, authorize('admin'), resetAiConfig);
 router.post('/ai/config/test', protect, authorize('admin'), testAiConfig);
+
+// 翻译队列(译文入库于 Translation 集合)
+router.get('/translate/queue', protect, authorize('admin'), getTranslationQueue);
+router.post('/translate/queue/run', protect, authorize('admin'), runTranslationQueue);
 
 module.exports = router;

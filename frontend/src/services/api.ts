@@ -114,8 +114,14 @@ export const settingsAPI = {
 };
 
 export const translateAPI = {
-  // texts: string[], target: 'zh' | 'en' → { success, translations }
-  batch: (texts, target) => api.post('/api/translate', { texts, target })
+  // 取某条内容的某字段译文:译文存库直接返回;未译则同步翻译写库;原文已是目标语言返回 { text: null, needed: false }
+  get: (sourceType, sourceId, field, lang) =>
+    api.get(`/api/translate/${sourceType}/${sourceId}/${field}`, { params: { lang } })
+};
+
+export const adminTranslateAPI = {
+  queue: () => api.get('/api/admin/translate/queue'),
+  run: (targets) => api.post('/api/admin/translate/queue/run', { targets })
 };
 
 export default api;

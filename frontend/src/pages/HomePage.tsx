@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { postsAPI } from '../services/api';
 import { getLang, t } from '../i18n';
-import { translateTexts } from '../translate';
+import { displayText, fetchTranslation, needsTranslation } from '../translate';
 import { FaArrowRight, FaEye, FaClock, FaSearch, FaChevronLeft, FaChevronRight, FaHeart } from 'react-icons/fa';
 
 const HomePage = () => {
@@ -40,21 +40,27 @@ const HomePage = () => {
     window.scrollTo(0, 0);
   }, [page]);
 
-  // AI 翻译:按站点语言把非目标语言内容批量翻译(缓存命中直接返回)
+  // AI 翻译:按站点语言拉取卡片标题与摘要译文(摘要取正文译文前 140 字);原文已含目标语言直接展示原文
   useEffect(() => {
     if (!posts.length) return;
     let cancelled = false;
-    const texts = posts.flatMap((p) => [p.title, p.summary || (p.content ? p.content.substring(0, 140) : '')]);
-    translateTexts(texts)
-      .then((translations) => {
-        if (cancelled) return;
-        const map = {};
-        posts.forEach((p, i) => {
-          map[p._id] = { title: translations[i * 2], summary: translations[i * 2 + 1] };
-        });
-        setTrTitles(map);
-      })
-      .catch(() => {});
+    (async () => {
+      const map = {};
+      await Promise.all(
+        posts.map(async (p) => {
+          const bodyOriginal = p.content || '';
+          const summaryFallback = bodyOriginal.substring(0, 140);
+          const summary = !bodyOriginal
+            ? ''
+            : !needsTranslation(bodyOriginal)
+              ? summaryFallback
+              : (await fetchTranslation('post', p._id, 'body'))?.substring(0, 140) || summaryFallback;
+          const title = await displayText('post', p._id, 'title', p.title || '');
+          if (!cancelled) map[p._id] = { title, summary };
+        })
+      );
+      if (!cancelled) setTrTitles(map);
+    })();
     return () => { cancelled = true; };
   }, [posts, lang]);
 

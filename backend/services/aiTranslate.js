@@ -141,5 +141,27 @@ async function translateBatch(texts, target) {
   }
   return out;
 }
+const CJK_RE = /[\u4e00-\u9fff]/;
 
-module.exports = { translateBatch };
+/**
+ * 判定文本语言:含中文字符视为中文,否则视为英文(粗筛,用于判断『是否需要翻译』)。
+ * @param {string} text
+ * @returns {'zh'|'en'}
+ */
+function detectLang(text) {
+  const s = typeof text === 'string' ? text : '';
+  return CJK_RE.test(s) ? 'zh' : 'en';
+}
+
+/**
+ * 翻译单条文本(译文持久化到 Translation 集合前调用)。
+ * @param {string} text
+ * @param {'zh'|'en'} target
+ * @returns {Promise<string>}
+ */
+async function translateSingle(text, target) {
+  const [out] = await translateBatch([text], target);
+  return out;
+}
+
+module.exports = { translateBatch, translateSingle, detectLang };

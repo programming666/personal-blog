@@ -12,7 +12,7 @@ import hljs from 'highlight.js/lib/common'; // 仅 35 种常用语言,替代全�
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getLang, t } from '../i18n';
-import { translateTexts } from '../translate';
+import { displayText } from '../translate';
 import { FaEdit, FaTrash, FaEye, FaComment, FaArrowLeft, FaUser, FaCalendarAlt, FaHeart, FaRegHeart, FaInfoCircle } from 'react-icons/fa';
 import TurnstileWidget from '../components/TurnstileWidget';
 
@@ -106,30 +106,33 @@ const PostPage = () => {
     if (post?._id) fetchComments();
   }, [post]);
 
-  // AI 翻译:按站点语言把非目标语言内容(如英文评论→中文)批量翻译(缓存命中直接返回)
+  // AI 翻译:按站点语言把非目标语言内容(如英文评论→中文)拉取译文;原文已含目标语言直接展示原文
   useEffect(() => {
     if (!post) return;
     let cancelled = false;
-    translateTexts([post.title, post.content])
-      .then(([title, content]) => {
-        if (!cancelled) setTrPost({ title, content });
-      })
-      .catch(() => {});
+    (async () => {
+      const [title, content] = await Promise.all([
+        displayText('post', post._id, 'title', post.title),
+        displayText('post', post._id, 'body', post.content),
+      ]);
+      if (!cancelled) setTrPost({ title, content });
+    })();
     return () => { cancelled = true; };
   }, [post, lang]);
 
   useEffect(() => {
     if (!comments.length) return;
     let cancelled = false;
-    const ids = comments.map((c) => c._id);
-    translateTexts(comments.map((c) => c.content))
-      .then((translations) => {
-        if (cancelled) return;
-        const map = {};
-        ids.forEach((id, i) => { map[id] = translations[i]; });
-        setTrComments(map);
-      })
-      .catch(() => {});
+    (async () => {
+      const map = {};
+      await Promise.all(
+        comments.map(async (c) => {
+          const text = await displayText('comment', c._id, 'body', c.content);
+          if (!cancelled) map[c._id] = text;
+        })
+      );
+      if (!cancelled) setTrComments(map);
+    })();
     return () => { cancelled = true; };
   }, [comments, lang]);
 

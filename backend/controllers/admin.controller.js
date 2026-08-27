@@ -1,6 +1,9 @@
 const User = require('../models/User');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
+const Announcement = require('../models/Announcement');
+const Translation = require('../models/Translation');
+const { translateSingle, detectLang } = require('../services/aiTranslate');
 const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
 const { getQuotaSnapshot, moderateComment, testConnection, applyVerdictToComment } = require('../services/aiModeration');
@@ -628,4 +631,88 @@ exports.testAiConfig = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+// ======== 翻译队列(译文持久化在 Translation 集合) ========
+
+/**
+ * 聚合所有内容(post/announcement/comment)的 zh/en 译文状态。
+ * 每项内容的 title/body 两个字段分别给出:原文语言、是否需要 zh/en 译文、现有译文。
+ */
+exports.getTranslationQueue = async (req, res) => {
+  try {
+    const [posts, comments, anns, translations] = await Promise.all([
+      Post.find().select('_id title content published').lean(),
+      Comment.find({ moderationStatus: 'approved' }).select('_id content').lean(),
+      Announcement.find().select('_id title content').lean(),
+      Translation.find().lean(),
+    ]);
+    const trMap = new Map();
+    for (const t of translations) {
+      trMap.set(`${t.sourceType}:${String(t.sourceId)}:${t.field}:${t.lang}`, t.text);
+    }
+    const items = [];
+    const pushItem = (sourceType, id, title, body) => {
+      const fields = [
+        { field: 'title', source: title },
+        { field: 'body', source: body },
+      ];
+      const enriched = fields.map((f) => {
+        const srcLang = detectLang(f.source || '');
+        return {
+          field: f.field,
+          source: String(f.source || ''),
+          lang: srcLang,
+          needZh: srcLang !== 'zh' && !!String(f.source || '').trim(),
+          needEn: srcLang !== 'en' && !!String(f.source || '').trim(),
+          zh: trMap.get(`${sourceType}:${String(id)}:${f.field}:zh`) || null,
+          en: trMap.get(`${sourceType}:${String(id)}:${f.field}:en`) || null,
+        };
+      });
+      items.push({
+        sourceType,
+        sourceId: String(id),
+        title: title || '',
+        preview: String(body || '').slice(0, 60),
+        fields: enriched,
+      });
+    };
+    for (const p of posts) if (p.published !== false) pushItem('post', p._id, p.title, p.content);
+    for (const a of anns) pushItem('announcement', a._id, a.title, a.content);
+    for (const c of comments) pushItem('comment', c._id, '', c.content);
+    res.status(200).json({ success: true, items });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 批量补译:body.targets = [{ sourceType, sourceId, field, lang, text }...]
+ * 逐条翻译并写入 Translation 集合;失败单条记录,不中断其余。
+ */
+exports.runTranslationQueue = async (req, res) => {
+  const targets = req.body?.targets;
+  if (!Array.isArray(targets) || targets.length === 0 || targets.length > 300) {
+    return res.status(400).json({ success: false, message: 'targets 需为 1-300 的数组' });
+  }
+  const ok = [];
+  const fail = [];
+  for (const t of targets) {
+    if (!t || typeof t.text !== 'string' || !['zh', 'en'].includes(t.lang)) {
+      fail.push({ ...t, message: '参数无效' });
+      continue;
+    }
+    try {
+      const text = await translateSingle(t.text, t.lang);
+      await Translation.findOneAndUpdate(
+        { sourceType: t.sourceType, sourceId: t.sourceId, field: t.field, lang: t.lang },
+        { text },
+        { upsert: true, new: true }
+      );
+      ok.push({ sourceType: t.sourceType, sourceId: t.sourceId, field: t.field, lang: t.lang });
+    } catch (err) {
+      fail.push({ ...t, message: err.message });
+    }
+  }
+  res.status(200).json({ success: true, ok: ok.length, fail });
 };

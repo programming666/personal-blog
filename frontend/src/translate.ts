@@ -1,5 +1,5 @@
 // 内容翻译前端助手:localStorage 缓存(键=目标语言+文本 hash),未命中才调后端 AI 翻译。
-// 站点原文以中文为基准:lang==='zh' 直接返回数据库原文;lang==='en' 才发起翻译。
+// 双向:zh 界面把非中文(如英文评论)译成简体中文;en 界面把中文译成英文。已是目标语言的内容原样返回。
 // 失败时回退原文(渐进增强,翻译不是硬依赖)。
 import { translateAPI } from './services/api';
 import { getLang } from './i18n';
@@ -35,17 +35,25 @@ const trimCache = () => {
   }
 };
 
+// 是否含中文字符(判定「文本已经是目标语言」的粗筛)
+const hasCJK = (s: string): boolean => /[\u4e00-\u9fff]/.test(s);
+
 /**
- * 批量翻译文本。target 缺省时按当前站点语言;'zh' 直接返回原文。
+ * 批量翻译文本。target 缺省时按当前站点语言。
+ * 只翻译「还不是目标语言」的文本:zh 目标翻非中文;en 目标翻中文。
  */
 export async function translateTexts(texts: string[], target?: 'zh' | 'en'): Promise<string[]> {
   const lang = (target ?? getLang()) as 'zh' | 'en';
-  if (lang === 'zh') return texts;
 
   const results: string[] = new Array(texts.length);
   const missing: number[] = [];
   texts.forEach((text, i) => {
     const s = typeof text === 'string' ? text : '';
+    // 已是目标语言:zh 目标下中文原样;en 目标下英文原样(不重复翻译、不浪费配额)
+    if ((lang === 'zh' && hasCJK(s)) || (lang === 'en' && !hasCJK(s))) {
+      results[i] = s;
+      return;
+    }
     try {
       const cached = localStorage.getItem(cacheKey(lang, s));
       if (cached !== null) {
@@ -57,6 +65,7 @@ export async function translateTexts(texts: string[], target?: 'zh' | 'en'): Pro
     }
     missing.push(i);
   });
+
 
   if (missing.length > 0) {
     try {

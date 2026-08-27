@@ -13,7 +13,7 @@ const HomePage = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [trTitles, setTrTitles] = useState({}); // en 模式:卡片标题/摘要译文
-  const isEn = getLang() === 'en';
+  const lang = getLang();
 
   const formatDate = (dateString) =>
     new Date(dateString).toLocaleDateString('zh-CN', {
@@ -40,9 +40,9 @@ const HomePage = () => {
     window.scrollTo(0, 0);
   }, [page]);
 
-  // AI 翻译:en 模式下批量翻译当前页卡片的标题与摘要(缓存命中直接返回)
+  // AI 翻译:按站点语言把非目标语言内容批量翻译(缓存命中直接返回)
   useEffect(() => {
-    if (!posts.length || !isEn) return;
+    if (!posts.length) return;
     let cancelled = false;
     const texts = posts.flatMap((p) => [p.title, p.summary || (p.content ? p.content.substring(0, 140) : '')]);
     translateTexts(texts)
@@ -56,7 +56,7 @@ const HomePage = () => {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [posts, isEn]);
+  }, [posts, lang]);
 
   const handlePageChange = (newPage) => {
     if (newPage > 0 && newPage <= totalPages) setPage(newPage);

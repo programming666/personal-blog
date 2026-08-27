@@ -14,7 +14,7 @@ const AnnouncementsPage = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [trMap, setTrMap] = useState({}); // en 模式:公告标题/内容译文
-  const isEn = getLang() === 'en';
+  const lang = getLang();
 
   const formatDate = (dateString) =>
     new Date(dateString).toLocaleDateString('zh-CN', {
@@ -41,9 +41,9 @@ const AnnouncementsPage = () => {
     window.scrollTo(0, 0);
   }, [page]);
 
-  // AI 翻译:en 模式下批量翻译当前页公告(缓存命中直接返回)
+  // AI 翻译:按站点语言把非目标语言内容批量翻译(缓存命中直接返回)
   useEffect(() => {
-    if (!items.length || !isEn) return;
+    if (!items.length) return;
     let cancelled = false;
     const texts = items.flatMap((it) => [it.title, it.content]);
     translateTexts(texts)
@@ -57,7 +57,7 @@ const AnnouncementsPage = () => {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [items, isEn]);
+  }, [items, lang]);
 
   return (
     <div>

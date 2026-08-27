@@ -68,7 +68,7 @@ const PostPage = () => {
   // 内容翻译(en 模式):文章标题/正文 + 每条评论译文
   const [trPost, setTrPost] = useState(null);
   const [trComments, setTrComments] = useState({});
-  const isEn = getLang() === 'en';
+  const lang = getLang();
 
   const userIdStr = user?._id ? String(user._id) : user?.id ? String(user.id) : '';
   const isPostLiked = !!(userIdStr && post?.likes?.some((l) => String(l) === userIdStr));
@@ -106,9 +106,9 @@ const PostPage = () => {
     if (post?._id) fetchComments();
   }, [post]);
 
-  // AI 翻译:en 模式下对文章标题/正文与评论批量翻译(缓存命中直接返回)
+  // AI 翻译:按站点语言把非目标语言内容(如英文评论→中文)批量翻译(缓存命中直接返回)
   useEffect(() => {
-    if (!post || !isEn) return;
+    if (!post) return;
     let cancelled = false;
     translateTexts([post.title, post.content])
       .then(([title, content]) => {
@@ -116,10 +116,10 @@ const PostPage = () => {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [post, isEn]);
+  }, [post, lang]);
 
   useEffect(() => {
-    if (!comments.length || !isEn) return;
+    if (!comments.length) return;
     let cancelled = false;
     const ids = comments.map((c) => c._id);
     translateTexts(comments.map((c) => c.content))
@@ -131,7 +131,7 @@ const PostPage = () => {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [comments, isEn]);
+  }, [comments, lang]);
 
   useEffect(() => {
     if (!post) return;

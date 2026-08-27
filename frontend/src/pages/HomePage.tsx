@@ -5,6 +5,7 @@ import { postsAPI } from '../services/api';
 import { getLang, t } from '../i18n';
 import { displayText, fetchTranslation, needsTranslation } from '../translate';
 import { FaArrowRight, FaEye, FaClock, FaSearch, FaChevronLeft, FaChevronRight, FaHeart } from 'react-icons/fa';
+import TranslatedBadge from '../components/TranslatedBadge';
 
 const HomePage = () => {
   const [posts, setPosts] = useState([]);
@@ -147,6 +148,12 @@ const HomePage = () => {
                   <p className="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-3 mb-4 flex-1">
                     {trTitles[post._id]?.summary || post.summary || (post.content ? post.content.substring(0, 140) + '…' : '')}
                   </p>
+                  {(() => {
+                    const tr = trTitles[post._id];
+                    const rawSummary = post.summary || (post.content ? post.content.substring(0, 140) + '…' : '');
+                    const translated = (!!tr?.title && tr.title !== post.title) || (!!tr?.summary && tr.summary !== rawSummary);
+                    return translated ? <TranslatedBadge /> : null;
+                  })()}
 
                   <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
                     <div className="flex items-center gap-3">

@@ -12,7 +12,8 @@ import hljs from 'highlight.js/lib/common'; // 仅 35 种常用语言,替代全�
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getLang, t } from '../i18n';
-import { displayText } from '../translate';
+import { displayText, needsTranslation } from '../translate';
+import TranslatedBadge from '../components/TranslatedBadge';
 import { FaEdit, FaTrash, FaEye, FaComment, FaArrowLeft, FaUser, FaCalendarAlt, FaHeart, FaRegHeart, FaInfoCircle } from 'react-icons/fa';
 import TurnstileWidget from '../components/TurnstileWidget';
 
@@ -423,6 +424,9 @@ const PostPage = () => {
                 </div>
               </form>
             )}
+            {trComments[comment._id] && trComments[comment._id] !== comment.content && (
+              <TranslatedBadge />
+            )}
           </div>
         </div>
       </div>
@@ -511,6 +515,9 @@ const PostPage = () => {
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-neutral-900 dark:text-white leading-tight">
             {trPost?.title || post.title}
           </h1>
+          {trPost?.title && trPost.title !== post.title && needsTranslation(post.title, lang) && (
+            <TranslatedBadge />
+          )}
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -557,6 +564,9 @@ const PostPage = () => {
             {trPost?.content || post.content}
           </ReactMarkdown>
         </div>
+        {trPost?.content && trPost.content !== post.content && needsTranslation(post.content, lang) && (
+          <TranslatedBadge />
+        )}
 
         <div className="mt-12 pt-6 border-t border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-6 text-sm text-neutral-500 dark:text-neutral-400">

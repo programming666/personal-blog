@@ -200,7 +200,7 @@ async function prewarmTranslations({ sourceType, sourceId }, fieldTexts) {
       const targetLang = originLang === 'zh' ? 'en' : 'zh';
       // 已有缓存就跳过(防重复预热)
       const existing = await Translation.findOne({ sourceType, sourceId: id, field, lang: targetLang }).lean();
-      if (existing && existing.translatedText) continue;
+      if (existing && existing.text) continue;
       // 防并发重复:同一 (type, id, field, lang) inflight 命中后直接共享 Promise
       const key = `${sourceType}:${id}:${field}:${targetLang}`;
       if (inflight.has(key)) continue;
@@ -209,7 +209,7 @@ async function prewarmTranslations({ sourceType, sourceId }, fieldTexts) {
           const translated = await translateSingle(text, targetLang);
           await Translation.updateOne(
             { sourceType, sourceId: id, field, lang: targetLang },
-            { $set: { sourceType, sourceId: id, field, lang: targetLang, translatedText: translated, status: 'done' } },
+            { $set: { sourceType, sourceId: id, field, lang: targetLang, text: translated, status: 'done' } },
             { upsert: true }
           );
         } catch (e) {

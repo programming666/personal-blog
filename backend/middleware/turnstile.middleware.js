@@ -98,7 +98,11 @@ const optionalTurnstile = (req, res, next) => {
   if (!process.env.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET_KEY === 'your_turnstile_secret_key_here') {
     return next();
   }
-  
+  // 草稿模式跳过验证(草稿只对作者本人可见,人机验证没有意义)
+  if (req.body && req.body.status === 'draft') {
+    return next();
+  }
+
   return validateTurnstile(req, res, next);
 };
 

@@ -209,15 +209,12 @@ async function prewarmTranslations({ sourceType, sourceId }, fieldTexts) {
           const translated = await translateSingle(text, targetLang);
           await Translation.updateOne(
             { sourceType, sourceId: id, field, lang: targetLang },
-            { $set: { sourceType, sourceId: id, field, lang: targetLang, text: translated, status: 'done' } },
+            { $set: { text: translated } },
             { upsert: true }
           );
         } catch (e) {
-          await Translation.updateOne(
-            { sourceType, sourceId: id, field, lang: targetLang },
-            { $set: { sourceType, sourceId: id, field, lang: targetLang, status: 'failed', error: String(e && e.message || e).slice(0, 200) } },
-            { upsert: true }
-          );
+          // 预热失败不写入缓存:让后续 GET /api/translate 重新尝试,避免污染库表
+          console.warn("[aiTranslate] prewarm 失败", sourceType, id, field, targetLang, e.message);
         } finally {
           inflight.delete(key);
         }

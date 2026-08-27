@@ -13,7 +13,9 @@ const { tickNow } = require('../services/moderationQueueWorker');
 const EMAIL_RE = /^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$/;
 
 const ADMIN_TOKEN_COOKIE = 'admin_token';
-const ADMIN_TOKEN_MAX_AGE = 60 * 60 * 1000; // 1h,与 JWT 一致
+// 管理员会话有效期(天)。持久化到 HttpOnly cookie:默认 7 天,可用 ADMIN_TOKEN_TTL_DAYS 覆盖。
+const ADMIN_TOKEN_TTL_DAYS = Number(process.env.ADMIN_TOKEN_TTL_DAYS || 7);
+const ADMIN_TOKEN_MAX_AGE = ADMIN_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000; // 与 JWT 一致
 
 function cookieOptions() {
   return {
@@ -42,7 +44,7 @@ function signAdminToken(adminUser) {
   return jwt.sign(
     { id: adminUser._id, role: 'admin' },
     process.env.JWT_SECRET,
-    { expiresIn: '1h' }
+    { expiresIn: `${ADMIN_TOKEN_TTL_DAYS}d` }
   );
 }
 

@@ -148,10 +148,11 @@ const HomePage = () => {
                   <p className="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-3 mb-4 flex-1">
                     {trTitles[post._id]?.summary || post.summary || (post.content ? post.content.substring(0, 140) + '…' : '')}
                   </p>
-                  {(() => {
+{(() => {
                     const tr = trTitles[post._id];
                     const rawSummary = post.summary || (post.content ? post.content.substring(0, 140) + '…' : '');
                     const translated = (!!tr?.title && tr.title !== post.title) || (!!tr?.summary && tr.summary !== rawSummary);
+                    console.error('BADGE_DEBUG', JSON.stringify({ id: post._id, postTitle: post.title, tr, translated }));
                     return translated ? <TranslatedBadge /> : null;
                   })()}
 

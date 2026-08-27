@@ -78,7 +78,7 @@ exports.getCurrentUser = async (req, res) => {
     }
     res.status(200).json({ success: true, data: user });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 

@@ -9,6 +9,30 @@ require('dotenv').config();
 // 初始化 Express 应用
 const app = express();
 app.set('trust proxy', 1);
+// L1: 不让响应头暴露底层框架
+app.disable('x-powered-by');
+
+// H1/M3: 严格 CSP + 点击劫持防护(全站,含 /api)
+// - script: 仅本站 + Cloudflare Turnstile(前台评论区体验验证)
+// - style: 允许内联(React 大量 style={{}} 内联样式)
+// - frame-ancestors 'none': iframe 嵌入 /admin 与登录页一律拒绝
+const CSP_HEADER = [
+  "default-src 'self'",
+  "script-src 'self' https://challenges.cloudflare.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://challenges.cloudflare.com",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'"
+].join('; ');
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', CSP_HEADER);
+  next();
+});
 // 中间件配置
 // CORS 白名单 — 严格允许 FRONTEND_URL + 可选 ALLOWED_ORIGINS,杜绝 origin: true 的反射:
 // 旧逻辑会把任意 Origin 反射回 ACAO,配合 credentials: true 让任何站点的脚本
@@ -83,18 +107,37 @@ if (process.env.SERVE_FRONTEND === 'true') {
   });
 }
 // 健康检查
+// 健康检查 — L2: 不暴露 uptime / 进程运行时长(& 其他仅运维需知信息则从日志查)
 app.get('/api/health', (req, res) => {
   res.json({
     success: true,
-    message: 'Personal Blog API running',
-    uptime: process.uptime(),
+    message: 'ok',
     timestamp: new Date().toISOString()
   });
 });
-// 错误处理中间件
+// 错误处理中间件(M5):统一脱敏,不向客户端泄露内部细节
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Server error', error: err.message });
+  // express.json() 体解析失败 → 400(而不是 500)
+  if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400)) {
+    return res.status(400).json({ success: false, message: '请求体不是合法的 JSON' });
+  }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ success: false, message: '请求体过大' });
+  }
+  // mongoose 无效 ObjectId → 400(不再回显 CastError 堆栈/模型名)
+  if (err.name === 'CastError') {
+    return res.status(400).json({ success: false, message: '无效的内容 ID' });
+  }
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ success: false, message: '文件过大' });
+  }
+  console.error('[error]', req.method, req.originalUrl, err.message);
+  // 生产(含线上拼错的 NODE_ENV=productions)一律脱敏;本地开发保留原始 message 便于调试
+  const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'productions';
+  res.status(err.status || 500).json({
+    success: false,
+    message: isProd ? '服务器内部错误' : (err.message || '服务器内部错误')
+  });
 });
 // 启动服务器
 const PORT = process.env.PORT || 5000;

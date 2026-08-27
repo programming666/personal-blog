@@ -109,7 +109,7 @@ exports.adminLogin = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -162,7 +162,7 @@ exports.adminTwoFactorVerify = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -196,7 +196,7 @@ exports.adminTwoFactorSetup = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -228,7 +228,7 @@ exports.adminTwoFactorEnable = async (req, res) => {
 
     res.status(200).json({ success: true, message: '2FA 已启用' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -258,7 +258,7 @@ exports.adminTwoFactorDisable = async (req, res) => {
 
     res.status(200).json({ success: true, message: '2FA 已关闭' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -270,7 +270,7 @@ exports.adminTwoFactorStatus = async (req, res) => {
       data: { enabled: !!user?.twoFactorEnabled }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -279,7 +279,7 @@ exports.getAllUsers = async (req, res) => {
     const users = await User.find({}).sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: users.length, data: users });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -290,7 +290,7 @@ exports.getAllPosts = async (req, res) => {
       .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: posts.length, data: posts });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -302,7 +302,7 @@ exports.getAllComments = async (req, res) => {
       .sort({ createdAt: -1 });
     res.status(200).json({ success: true, count: comments.length, data: comments });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -316,7 +316,7 @@ exports.deletePost = async (req, res) => {
     await Comment.deleteMany({ post: req.params.id });
     res.status(200).json({ success: true, message: 'Post deleted successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -329,7 +329,7 @@ exports.deleteComment = async (req, res) => {
     await Comment.findByIdAndDelete(req.params.id);
     res.status(200).json({ success: true, message: 'Comment deleted successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -349,7 +349,7 @@ exports.updateUserStatus = async (req, res) => {
     }
     res.status(200).json({ success: true, message: 'User status updated', data: user });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -368,7 +368,7 @@ exports.deleteUser = async (req, res) => {
     await User.findByIdAndDelete(id);
     res.status(200).json({ success: true, message: 'User and all associated content deleted' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -387,7 +387,7 @@ exports.getStats = async (req, res) => {
       data: { totalUsers, totalPosts, totalComments, pendingComments, rejectedComments, recentPosts }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -405,7 +405,7 @@ exports.getPendingComments = async (req, res) => {
       .limit(limit);
     res.status(200).json({ success: true, count: comments.length, data: comments });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -427,7 +427,7 @@ exports.moderateCommentManual = async (req, res) => {
     await comment.save();
     res.status(200).json({ success: true, data: comment });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -449,7 +449,7 @@ exports.retryModeration = async (req, res) => {
     await comment.save();
     res.status(200).json({ success: true, data: comment, verdict });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -458,7 +458,7 @@ exports.getModerationQuota = async (req, res) => {
   try {
     res.status(200).json({ success: true, data: getQuotaSnapshot() });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -467,7 +467,7 @@ exports.runModerationTick = async (req, res) => {
     tickNow();
     res.status(202).json({ success: true, message: 'queue tick scheduled' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -490,7 +490,7 @@ exports.getAdminProfile = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -530,7 +530,7 @@ exports.updateAdminProfile = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -574,7 +574,7 @@ exports.getAiConfig = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -601,7 +601,7 @@ exports.saveAiConfig = async (req, res) => {
       data: { enabled: cfg.enabled, baseUrl: cfg.baseUrl, models: cfg.models, rpm: cfg.rpm, rpd: cfg.rpd, keyCount: cfg.keys.length }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -613,7 +613,7 @@ exports.resetAiConfig = async (req, res) => {
       data: { source: 'env', enabled: cfg.enabled, baseUrl: cfg.baseUrl, models: cfg.models, rpm: cfg.rpm, rpd: cfg.rpd, keyCount: cfg.keys.length }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -631,7 +631,7 @@ exports.testAiConfig = async (req, res) => {
     const result = await testConnection(testCfg);
     res.status(200).json({ success: result.ok, ...result });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -684,7 +684,7 @@ exports.getTranslationQueue = async (req, res) => {
     for (const c of comments) pushItem('comment', c._id, '', c.content);
     res.status(200).json({ success: true, items });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 

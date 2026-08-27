@@ -82,7 +82,7 @@ exports.createComment = async (req, res) => {
       data: comment
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -95,7 +95,7 @@ exports.getPostComments = async (req, res) => {
     const comments = await Comment.find(filter).sort({ createdAt: -1 }).populate('replyTo', 'username name avatar');
     res.status(200).json({ success: true, count: comments.length, data: comments });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -122,7 +122,7 @@ exports.updateComment = async (req, res) => {
 
     res.status(200).json({ success: true, data: comment });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -142,7 +142,7 @@ exports.deleteComment = async (req, res) => {
 
     res.status(200).json({ success: true, data: {} });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -172,6 +172,6 @@ exports.likeComment = async (req, res) => {
       count: comment.likes.length
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };

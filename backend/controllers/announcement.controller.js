@@ -23,7 +23,7 @@ exports.listAnnouncements = async (req, res) => {
       data: items
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -35,7 +35,7 @@ exports.getAnnouncement = async (req, res) => {
     }
     res.status(200).json({ success: true, data: announcement });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -60,7 +60,7 @@ exports.listAllAnnouncements = async (req, res) => {
       data: items
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -78,7 +78,7 @@ exports.createAnnouncement = async (req, res) => {
     });
     res.status(201).json({ success: true, data: announcement });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -102,7 +102,7 @@ exports.updateAnnouncement = async (req, res) => {
     await invalidateSource('announcement', announcement._id);
     res.status(200).json({ success: true, data: announcement });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -114,7 +114,7 @@ exports.deleteAnnouncement = async (req, res) => {
     }
     res.status(200).json({ success: true, message: '公告已删除' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 

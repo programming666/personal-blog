@@ -13,7 +13,7 @@ exports.getPublicSettings = async (req, res) => {
     docs.forEach(d => { obj[d.key] = d.value; });
     res.status(200).json({ success: true, data: obj });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -38,7 +38,7 @@ exports.uploadLogo = async (req, res) => {
 
     res.status(200).json({ success: true, data: setting.value });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };
 
@@ -52,6 +52,6 @@ exports.deleteLogo = async (req, res) => {
     await Setting.deleteOne({ key: LOGO_KEY });
     res.status(200).json({ success: true, message: 'Logo 已删除' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: '服务器内部错误' });
   }
 };

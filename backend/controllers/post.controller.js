@@ -1,5 +1,6 @@
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
+const { invalidateSource } = require('../services/aiTranslate');
 
 exports.getPosts = async (req, res) => {
   try {
@@ -88,8 +89,11 @@ exports.updatePost = async (req, res) => {
 
     if (!post) {
       return res.status(404).json({ success: false, message: 'Post not found' });
+
     }
 
+    // 内容已变更,失效旧译文缓存,下次访问按需重译
+    await invalidateSource('post', post._id);
     res.status(200).json({ success: true, data: post });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error updating post', error: error.message });

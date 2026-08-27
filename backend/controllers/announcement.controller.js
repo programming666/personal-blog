@@ -1,4 +1,5 @@
 const Announcement = require('../models/Announcement');
+const { invalidateSource } = require('../services/aiTranslate');
 
 exports.listAnnouncements = async (req, res) => {
   try {
@@ -94,7 +95,11 @@ exports.updateAnnouncement = async (req, res) => {
     );
     if (!announcement) {
       return res.status(404).json({ success: false, message: '公告不存在' });
+
     }
+
+    // 内容已变更,失效旧译文缓存,下次访问按需重译
+    await invalidateSource('announcement', announcement._id);
     res.status(200).json({ success: true, data: announcement });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

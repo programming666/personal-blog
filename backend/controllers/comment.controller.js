@@ -1,6 +1,7 @@
 const Comment = require('../models/Comment');
 const Post = require('../models/Post');
 const { moderateComment, applyVerdictToComment } = require('../services/aiModeration');
+const { invalidateSource } = require('../services/aiTranslate');
 
 exports.createComment = async (req, res) => {
   try {
@@ -115,6 +116,9 @@ exports.updateComment = async (req, res) => {
       // 管理员豁免 100 字上限,其余用户仍受 schema 限制
       { new: true, runValidators: req.user.role !== 'admin' }
     ).populate('author', 'username name avatar role');
+
+    // 内容已变更,失效旧译文缓存,下次访问按需重译
+    await invalidateSource('comment', comment._id);
 
     res.status(200).json({ success: true, data: comment });
   } catch (error) {

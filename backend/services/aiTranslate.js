@@ -164,4 +164,13 @@ async function translateSingle(text, target) {
   return out;
 }
 
-module.exports = { translateBatch, translateSingle, detectLang };
+/**
+ * 内容被编辑后失效其全部已存译文(按 (sourceType, sourceId) 删除)。
+ * 下次 GET /api/translate 时按需重新翻译入库,保证译文与原文同步。
+ */
+async function invalidateSource(sourceType, sourceId) {
+  const Translation = require('../models/Translation');
+  await Translation.deleteMany({ sourceType, sourceId: String(sourceId) });
+}
+
+module.exports = { translateBatch, translateSingle, detectLang, invalidateSource };

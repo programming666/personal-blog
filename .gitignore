@@ -142,3 +142,8 @@ CLAUDE.md
 .claude/
 .vscode/.playwright-mcp/
 .playwright-mcp/
+
+# temp deploy/verify helpers (contain server credentials)
+ssh.py
+verify_flat.js
+__pycache__/

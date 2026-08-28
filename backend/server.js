@@ -107,14 +107,18 @@ if (process.env.SERVE_FRONTEND === 'true') {
     }
   }));
   // SPA fallback — 仅对不存在对应静态文件的非 /api、非 /uploads 路径返回 index.html;
-  // 缺失的哈希资源(asset 404)必须如实 404,否则会被缓存成 HTML 毒化 CDN/浏览器
-  app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
-    const candidate = path.join(distPath, req.path);
-    if (req.path !== '/' && (path.extname(req.path) !== '' || fs.existsSync(candidate))) {
-      return res.status(404).end();
-    }
+    // SPA fallback 返回 index.html 时强制 no-cache,避免浏览器缓存旧 index.html
+    // 导致引用的 chunk hash 在下次部署后失效
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(distPath, 'index.html'));
-  });
+// SPA fallback 返回 index.html 时强制 no-cache,避免浏览器缓存旧 index.html
+    // 导致引用的 chunk hash 在下次部署后失效
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.sendFile(path.join(distPath, 'index.html'));
 }
 // 健康检查
 // 健康检查 — L2: 不暴露 uptime / 进程运行时长(& 其他仅运维需知信息则从日志查)

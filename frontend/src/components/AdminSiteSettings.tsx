@@ -7,45 +7,58 @@ import { FaImage, FaUpload, FaTrash, FaSpinner } from 'react-icons/fa';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const AdminSiteSettings = () => {
-  const { logoPath, refresh } = useSettings();
-  const fileRef = useRef(null);
+  const { logoPath, faviconPath, refresh } = useSettings();
+  const logoFileRef = useRef(null);
+  const faviconFileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
   const logoUrl = logoPath ? `${API_BASE}/${logoPath}` : null;
+  const faviconUrl = faviconPath ? `${API_BASE}/${faviconPath}` : null;
 
-  const handlePick = () => {
-    fileRef.current?.click();
+  const handlePick = (kind) => {
+    (kind === 'favicon' ? faviconFileRef : logoFileRef).current?.click();
   };
 
-  const handleFile = async (e) => {
+  const handleFile = async (e, kind) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setError('');
     setInfo('');
     try {
       setUploading(true);
-      await adminAPI.uploadLogo(file);
+      if (kind === 'favicon') {
+        await adminAPI.uploadFavicon(file);
+        setInfo('图标已更新');
+      } else {
+        await adminAPI.uploadLogo(file);
+        setInfo('Logo 已更新');
+      }
       await refresh();
-      setInfo('Logo 已更新');
     } catch (err) {
       setError(err.response?.data?.message || '上传失败');
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
+      const ref = kind === 'favicon' ? faviconFileRef : logoFileRef;
+      if (ref.current) ref.current.value = '';
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('确定要恢复默认 logo 吗？')) return;
+  const handleDelete = async (kind) => {
+    if (!window.confirm(kind === 'favicon' ? '确定要恢复默认图标吗？' : '确定要恢复默认 logo 吗？')) return;
     setError('');
     setInfo('');
     try {
       setUploading(true);
-      await adminAPI.deleteLogo();
+      if (kind === 'favicon') {
+        await adminAPI.deleteFavicon();
+        setInfo('已恢复默认图标');
+      } else {
+        await adminAPI.deleteLogo();
+        setInfo('已恢复默认 logo');
+      }
       await refresh();
-      setInfo('已恢复默认 logo');
     } catch (err) {
       setError(err.response?.data?.message || '删除失败');
     } finally {
@@ -90,21 +103,64 @@ const AdminSiteSettings = () => {
             </p>
             <div className="flex flex-wrap gap-2">
               <input
-                ref={fileRef}
+                ref={logoFileRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={handleFile}
+                onChange={(e) => handleFile(e, 'logo')}
               />
-              <button onClick={handlePick} disabled={uploading} className="btn btn-primary">
+              <button onClick={() => handlePick('logo')} disabled={uploading} className="btn btn-primary">
                 {uploading ? <FaSpinner className="animate-spin" /> : <FaUpload />}
                 {logoUrl ? '更换 logo' : '上传 logo'}
               </button>
               {logoUrl && (
-                <button onClick={handleDelete} disabled={uploading} className="btn btn-danger">
+                <button onClick={() => handleDelete('logo')} disabled={uploading} className="btn btn-danger">
                   <FaTrash /> 恢复默认
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-6 border-t border-neutral-200 dark:border-neutral-800">
+        <h2 className="text-xl font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+          <FaImage /> 站点图标 (Favicon)
+        </h2>
+        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+          上传后作为浏览器标签页图标。建议 64x64 PNG，最大 5 MB。不设置则使用默认图标。
+        </p>
+        <div className="card p-6 mt-4">
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="w-16 h-16 rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden grid place-items-center bg-neutral-50 dark:bg-neutral-900">
+              {faviconUrl ? (
+                <img src={faviconUrl} alt="当前 favicon" className="w-full h-full object-contain" />
+              ) : (
+                <FaImage className="text-2xl text-neutral-300 dark:text-neutral-700" />
+              )}
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <p className="text-sm text-neutral-700 dark:text-neutral-300 mb-3">
+                当前：{faviconUrl ? '已设置自定义图标' : '默认图标'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={faviconFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleFile(e, 'favicon')}
+                />
+                <button onClick={() => handlePick('favicon')} disabled={uploading} className="btn btn-primary">
+                  {uploading ? <FaSpinner className="animate-spin" /> : <FaUpload />}
+                  {faviconUrl ? '更换图标' : '上传图标'}
+                </button>
+                {faviconUrl && (
+                  <button onClick={() => handleDelete('favicon')} disabled={uploading} className="btn btn-danger">
+                    <FaTrash /> 恢复默认
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ const cors = require('cors');
 const passport = require('passport');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 // 初始化 Express 应用
 const app = express();
@@ -86,7 +87,6 @@ app.use('/api/uploads', require('./routes/upload.routes'));
 
 // 仅在 SERVE_FRONTEND=true 时,把前端 dist/ 也由 Express 服务
 if (process.env.SERVE_FRONTEND === 'true') {
-  const fs = require('fs');
   const distPath = path.resolve(__dirname, '..', 'frontend', 'dist');
   // 缓存策略:
   //  - assets/* (哈希文件名,内容不变) → 1 年 immutable
@@ -106,9 +106,105 @@ if (process.env.SERVE_FRONTEND === 'true') {
       }
     }
   }));
+  // ---- SEO:OG 标签 + favicon 注入 ----
+  // SPA 是 CSR,爬虫/分享卡片读到的是 Express 返回的原始 HTML,
+  // 所以对文章路径服务端查库后把 og:meta 注入 <head>,再返回给客户端。
+  const escapeHtml = (s) =>
+    String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+  let indexHtmlCache = null;
+
+  // 站点级 meta(title / favicon / logo)缓存 30s,避免每个请求都查库
+  let siteMetaCache = null;
+  let siteMetaCacheAt = 0;
+  async function getSiteMeta() {
+    if (siteMetaCache && Date.now() - siteMetaCacheAt < 30000) return siteMetaCache;
+    const meta = { title: '个人博客', favicon: null, logo: null, description: '个人技术博客,记录学习与生活' };
+    try {
+      const Setting = require('./models/Setting');
+      const docs = await Setting.find({ key: { $in: ['site.title', 'site.favicon', 'site.logo', 'site.description'] } });
+      docs.forEach((d) => {
+        if (d.key === 'site.title' && d.value) meta.title = String(d.value);
+        if (d.key === 'site.favicon' && d.value?.path) meta.favicon = d.value.path;
+        if (d.key === 'site.logo' && d.value?.path) meta.logo = d.value.path;
+        if (d.key === 'site.description' && d.value) meta.description = String(d.value);
+      });
+      siteMetaCache = meta;
+      siteMetaCacheAt = Date.now();
+    } catch (e) {
+      console.error('[seo] settings lookup failed', e.message);
+    }
+    return meta;
+  }
+
+  // 文章路径 /posts/:id 或 /posts/:slug → 查库拿文章 meta;非文章路径用站点默认
+  async function buildSeoMeta(req, siteMeta) {
+    const base = `${req.protocol}://${req.get('host')}`;
+    const m = req.path.match(/^\/posts\/([^/]+)/);
+    const og = {
+      title: siteMeta.title,
+      description: siteMeta.description,
+      image: siteMeta.logo ? `${base}/${siteMeta.logo}` : null,
+      url: base + (req.path === '/' ? '' : req.path),
+      type: 'website'
+    };
+    if (m) {
+      try {
+        const mongoose = require('mongoose');
+        const Post = require('./models/Post');
+        const idOrSlug = decodeURIComponent(m[1]);
+        const idCond = mongoose.isValidObjectId(idOrSlug) ? { _id: idOrSlug } : null;
+        const post = await Post.findOne(idCond ? { $or: [idCond, { slug: idOrSlug }] } : { slug: idOrSlug })
+          .select('title slug excerpt content thumbnail images status')
+          .maxTimeMS(3000);
+        if (post && post.status === 'published') {
+          og.title = post.title;
+          og.description = (post.excerpt || post.content || '').slice(0, 150);
+          const img = post.thumbnail || (post.images && post.images[0]);
+          if (img) og.image = img.startsWith('http') ? img : `${base}/${img.replace(/^\/+/, '')}`;
+          og.url = `${base}/posts/${post.slug || post._id}`;
+          og.type = 'article';
+        }
+      } catch (e) {
+        console.error('[seo] post lookup failed', e.message);
+      }
+    }
+    return og;
+  }
+
+  // 把 og meta + favicon 注入 index.html 模板
+  function renderHtmlWithMeta(template, og, siteMeta, base) {
+    const metaLines = [
+      `<meta property="og:title" content="${escapeHtml(og.title)}" />`,
+      `<meta property="og:description" content="${escapeHtml(og.description)}" />`,
+      og.image ? `<meta property="og:image" content="${escapeHtml(og.image)}" />` : null,
+      `<meta property="og:url" content="${escapeHtml(og.url)}" />`,
+      `<meta property="og:type" content="${og.type}" />`,
+      `<meta property="og:site_name" content="${escapeHtml(siteMeta.title)}" />`,
+      `<meta property="og:locale" content="zh_CN" />`,
+      `<meta name="twitter:card" content="${og.image ? 'summary_large_image' : 'summary'}" />`,
+      `<meta name="twitter:title" content="${escapeHtml(og.title)}" />`,
+      og.image ? `<meta name="twitter:image" content="${escapeHtml(og.image)}" />` : null,
+      `<meta name="description" content="${escapeHtml(og.description)}" />`
+    ].filter(Boolean).join('\n    ');
+    let html = template
+      .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(og.title)}</title>`)
+      .replace('</head>', `    ${metaLines}\n  </head>`);
+    // favicon:有自定义则替换 vite.svg
+    if (siteMeta.favicon) {
+      const faviconUrl = siteMeta.favicon.startsWith('http') ? siteMeta.favicon : `/${siteMeta.favicon.replace(/^\/+/, '')}`;
+      html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${faviconUrl}" type="image/png" />`);
+    }
+    return html;
+  }
+
   // SPA fallback — 仅对不存在对应静态文件的非 /api、非 /uploads 路径返回 index.html;
   // 缺失的哈希资源(asset 404)必须如实 404,否则会被缓存成 HTML 毒化 CDN/浏览器
-  app.get(/^\/(?!api\/|uploads\/).*/, (req, res) => {
+  app.get(/^\/(?!api\/|uploads\/).*/, async (req, res) => {
     const candidate = path.join(distPath, req.path);
     if (req.path !== '/' && (path.extname(req.path) !== '' || fs.existsSync(candidate))) {
       return res.status(404).end();
@@ -118,7 +214,19 @@ if (process.env.SERVE_FRONTEND === 'true') {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.sendFile(path.join(distPath, 'index.html'));
+    try {
+      const siteMeta = await getSiteMeta();
+      const og = await buildSeoMeta(req, siteMeta);
+      if (!indexHtmlCache) {
+        indexHtmlCache = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+      }
+      const base = `${req.protocol}://${req.get('host')}`;
+      const html = renderHtmlWithMeta(indexHtmlCache, og, siteMeta, base);
+      res.send(html);
+    } catch (err) {
+      console.error('[seo] fallback render failed', err.message);
+      res.sendFile(path.join(distPath, 'index.html'));
+    }
   });
 }
 // 健康检查

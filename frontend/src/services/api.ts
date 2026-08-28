@@ -80,6 +80,14 @@ export const adminAPI = {
     });
   },
   deleteLogo: () => api.delete('/api/settings/logo'),
+  uploadFavicon: (file) => {
+    const fd = new FormData();
+    fd.append('favicon', file);
+    return api.post('/api/settings/favicon', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  deleteFavicon: () => api.delete('/api/settings/favicon'),
   // AI 审核配置 (OpenAI 兼容)
   getAiConfig: () => api.get('/api/admin/ai/config'),
   saveAiConfig: (data) => api.put('/api/admin/ai/config', data),

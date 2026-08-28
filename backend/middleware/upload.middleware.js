@@ -122,4 +122,25 @@ const processAvatar = async (req, res, next) => {
   }
 };
 
-module.exports = { upload, processImage, processGalleryImages, processGalleryImage, processLogo, processAvatar };
+
+// favicon:站点标签页图标 — 生成 64x64 PNG(浏览器 <link rel="icon"> 兼容)
+const processFavicon = async (req, res, next) => {
+  if (!req.file) {
+    return next();
+  }
+  try {
+    const filename = `favicon-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
+    const filepath = path.join(uploadDir, filename);
+    await sharp(req.file.buffer)
+      .resize(64, 64, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toFile(filepath);
+    req.file.filename = filename;
+    req.file.path = `uploads/${filename}`;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { upload, processImage, processGalleryImages, processGalleryImage, processLogo, processAvatar, processFavicon };

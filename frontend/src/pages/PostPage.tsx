@@ -5,10 +5,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 // katex CSS 由 chunk 自行带出(路由级分包后只随文章页加载)
 import 'katex/dist/katex.min.css';
-import 'highlight.js/styles/github-dark.css';
-import hljs from 'highlight.js/lib/common'; // 仅 35 种常用语言,替代全量 196 种
+import 'highlight.js/styles/github-dark.css'; // 代码块语法高亮主题(rehype-highlight 自动应用 class hljs xxx)
+import CodeBlock from '../components/CodeBlock';
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getLang, t } from '../i18n';
@@ -331,7 +332,7 @@ const PostPage = () => {
             ) : (
               <>
                 <div className="mt-2 prose prose-sm prose-neutral dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
-                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ img: renderMarkdownImg }}>
+                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeHighlight]} components={{ img: renderMarkdownImg, code: CodeBlock }}>
                     {trComments[comment._id] || comment.content}
                   </ReactMarkdown>
                 </div>
@@ -604,7 +605,7 @@ const PostPage = () => {
 
         <div className="markdown-content prose prose-lg prose-neutral dark:prose-invert max-w-none">
 
-          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]} components={{ img: renderMarkdownImg }}>
+          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeHighlight]} components={{ img: renderMarkdownImg, code: CodeBlock }}>
 
             {trPost?.content || post.content}
 

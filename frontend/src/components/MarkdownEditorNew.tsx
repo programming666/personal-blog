@@ -9,6 +9,8 @@ import 'katex/dist/katex.min.css';
 import hljs from 'highlight.js/lib/common';
 import 'highlight.js/styles/github-dark.css';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import CodeBlock from './CodeBlock';
 import { useTheme } from '../context/ThemeContext';
 import { adminAPI } from '../services/api';
 import { renderMarkdownImg } from '../utils/markdownImg.jsx';
@@ -164,8 +166,8 @@ const MarkdownEditorNew = ({ initialContent, onSave, height = '600px' }) => {
             renderHTML={(text) => (
               <ReactMarkdown
                 remarkPlugins={[remarkMath, remarkGfm]}
-                rehypePlugins={[rehypeKatex]}
-                components={{ img: renderMarkdownImg }}
+                rehypePlugins={[rehypeKatex, rehypeHighlight]}
+                components={{ img: renderMarkdownImg, code: CodeBlock }}
               >
                 {text}
               </ReactMarkdown>
@@ -189,9 +191,10 @@ const MarkdownEditorNew = ({ initialContent, onSave, height = '600px' }) => {
             <ReactMarkdown
               children={content}
               remarkPlugins={[remarkMath, remarkGfm]}
-              rehypePlugins={[rehypeKatex]}
+              rehypePlugins={[rehypeKatex, rehypeHighlight]}
               components={{
                 img: renderMarkdownImg,
+                code: CodeBlock,
                 code({ node, inline, className, children, ...props }) {
                   const match = /language-(\w+)/.exec(className || '');
                   const isInlineCode = inline || (!match && String(children).indexOf('\n') === -1);

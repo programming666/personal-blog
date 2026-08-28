@@ -7,6 +7,9 @@ import { FaThumbtack, FaBullhorn, FaChevronLeft, FaChevronRight } from 'react-ic
 import ReactMarkdown from 'react-markdown';
 import TranslatedBadge from '../components/TranslatedBadge';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
+import CodeBlock from '../components/CodeBlock';
 
 const AnnouncementsPage = () => {
   const [items, setItems] = useState([]);
@@ -119,7 +122,7 @@ const AnnouncementsPage = () => {
                   </time>
                 </header>
                 <div className="prose prose-neutral dark:prose-invert max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{trMap[item._id]?.content || item.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={{ code: CodeBlock }}>{trMap[item._id]?.content || item.content}</ReactMarkdown>
                 </div>
                 {trMap[item._id] && (trMap[item._id].title !== item.title || trMap[item._id].content !== item.content) && (
                   <TranslatedBadge />

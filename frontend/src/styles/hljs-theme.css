@@ -6,10 +6,11 @@
  */
 
 /* === 浅色模式(默认) === */
+/* 背景由 Tailwind 类控制(pre 用 bg-neutral-50 / dark:bg-[#0d1117]),
+   这里不设 background,否则会覆盖 Tailwind 的浅色/深色背景类 */
 .hljs,
 [class*="language-"] {
   color: #24292e;
-  background: transparent;
 }
 
 .hljs-comment,
@@ -90,7 +91,6 @@
 :root.dark .hljs,
 :root.dark [class*="language-"] {
   color: #c9d1d9;
-  background: transparent;
 }
 
 :root.dark .hljs-comment,

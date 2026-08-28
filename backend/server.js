@@ -141,6 +141,26 @@ if (process.env.SERVE_FRONTEND === 'true') {
     return meta;
   }
 
+  // markdown → 纯文本(OG description 用,去掉标题符号/链接/图片/代码标记等)
+  function stripMarkdown(src) {
+    if (!src) return '';
+    return String(src)
+      .replace(/```[\s\S]*?```/g, ' ')      // 代码块
+      .replace(/`[^`]*`/g, ' ')               // 行内代码
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')  // 图片
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // 链接 → 保留文字
+      .replace(/^#{1,6}\s+/gm, '')           // ATX 标题
+      .replace(/^\s*([-*_])(\s*){2,}\s*$/gm, '') // 分隔线
+      .replace(/^\s*[-*+]\s+/gm, '')        // 无序列表
+      .replace(/^\s*\d+\.\s+/gm, '')      // 有序列表
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // 粗体
+      .replace(/\*([^*]+)\*/g, '$1')        // 斜体
+      .replace(/~~([^~]+)~~/g, '$1')          // 删除线
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   // 文章路径 /posts/:id 或 /posts/:slug → 查库拿文章 meta;非文章路径用站点默认
   async function buildSeoMeta(req, siteMeta) {
     const base = `${req.protocol}://${req.get('host')}`;
@@ -163,7 +183,7 @@ if (process.env.SERVE_FRONTEND === 'true') {
           .maxTimeMS(3000);
         if (post && post.status === 'published') {
           og.title = post.title;
-          og.description = (post.excerpt || post.content || '').slice(0, 150);
+          og.description = stripMarkdown(post.excerpt || post.content || '').slice(0, 150);
           const img = post.thumbnail || (post.images && post.images[0]);
           if (img) og.image = img.startsWith('http') ? img : `${base}/${img.replace(/^\/+/, '')}`;
           og.url = `${base}/posts/${post.slug || post._id}`;

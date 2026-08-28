@@ -123,18 +123,28 @@ const processAvatar = async (req, res, next) => {
 };
 
 
-// favicon:站点标签页图标 — 生成 64x64 PNG(浏览器 <link rel="icon"> 兼容)
+// favicon:站点标签页图标 — 支持 svg / png / jpeg / webp / gif 输入,统一转 64x64 PNG
+// (浏览器 <link rel="icon"> 兼容;SVG 栅格化后脚本不执行,顺带消除存储型 XSS 面)
+const FAVICON_MIMES = new Set([
+  'image/svg+xml', 'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'
+]);
 const processFavicon = async (req, res, next) => {
   if (!req.file) {
     return next();
   }
+  if (!FAVICON_MIMES.has(req.file.mimetype)) {
+    return next(Object.assign(new Error('favicon 仅支持 SVG / PNG / JPEG / WebP / GIF / AVIF'), { statusCode: 400 }));
+  }
   try {
     const filename = `favicon-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
     const filepath = path.join(uploadDir, filename);
-    await sharp(req.file.buffer)
+    // SVG 矢量源先 4x 栅格化再缩到 64px,避免锐利边缘糊掉
+    const isSvg = req.file.mimetype === 'image/svg+xml';
+    let pipeline = sharp(req.file.buffer, isSvg ? { density: 384 } : {});
+    pipeline = pipeline
       .resize(64, 64, { fit: 'inside', withoutEnlargement: true })
-      .png()
-      .toFile(filepath);
+      .png();
+    await pipeline.toFile(filepath);
     req.file.filename = filename;
     req.file.path = `uploads/${filename}`;
     next();

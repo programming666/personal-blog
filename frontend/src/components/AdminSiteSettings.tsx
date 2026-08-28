@@ -128,7 +128,8 @@ const AdminSiteSettings = () => {
           <FaImage /> 站点图标 (Favicon)
         </h2>
         <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          上传后作为浏览器标签页图标。建议 64x64 PNG，最大 5 MB。不设置则使用默认图标。
+          支持 SVG / PNG / JPEG / WebP / GIF / AVIF，上传后自动转为 64x64 PNG。
+          不设置则使用默认图标。最大 5 MB。
         </p>
         <div className="card p-6 mt-4">
           <div className="flex flex-wrap items-center gap-6">
@@ -147,7 +148,7 @@ const AdminSiteSettings = () => {
                 <input
                   ref={faviconFileRef}
                   type="file"
-                  accept="image/*"
+                  accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp,image/gif,image/avif"
                   className="hidden"
                   onChange={(e) => handleFile(e, 'favicon')}
                 />

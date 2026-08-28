@@ -332,7 +332,7 @@ const PostPage = () => {
             ) : (
               <>
                 <div className="mt-2 prose prose-sm prose-neutral dark:prose-invert max-w-none text-neutral-700 dark:text-neutral-300">
-                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeHighlight]} components={{ img: renderMarkdownImg, code: CodeBlock }}>
+                  <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeHighlight]} components={{ img: renderMarkdownImg, pre: CodeBlock }}>
                     {trComments[comment._id] || comment.content}
                   </ReactMarkdown>
                 </div>
@@ -605,7 +605,7 @@ const PostPage = () => {
 
         <div className="markdown-content prose prose-lg prose-neutral dark:prose-invert max-w-none">
 
-          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeHighlight]} components={{ img: renderMarkdownImg, code: CodeBlock }}>
+          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeHighlight]} components={{ img: renderMarkdownImg, pre: CodeBlock }}>
 
             {trPost?.content || post.content}
 

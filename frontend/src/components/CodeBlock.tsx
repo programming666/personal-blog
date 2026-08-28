@@ -1,26 +1,20 @@
-// 代码块组件:
-//   - 行内 code (className 不含 language-xxx) → 直接渲染 <code>
-//   - 代码块 (rehype-highlight 处理后,className 含 language-xxx) → 渲染带复制按钮的 wrapper
-// 注:react-markdown 10 不再传 `inline` prop,用 className 是否有 language- 前缀判断
-import { useState, useCallback } from 'react';
+// 代码块 wrapper:用 react-markdown 的 `pre` 替换组件。
+// react-markdown 在代码块处生成 <pre><code class="language-xxx">...</code></pre>,
+// 替换 `pre` 后 children 就是一个 <code> element。CodeBlock 把它包成
+// header (lang + copy) + content 区域,并根据主题走浅/深色。
+import { useState, useCallback, isValidElement, cloneElement } from 'react';
 import { FaCopy, FaCheck } from 'react-icons/fa';
 
-type CodeBlockProps = {
+type CodeProps = {
   className?: string;
   children?: React.ReactNode;
-  node?: unknown;
 };
 
-function extractText(node: React.ReactNode): string {
-  if (node == null || typeof node === 'boolean') return '';
-  if (typeof node === 'string' || typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(extractText).join('');
-  if (typeof node === 'object' && node !== null && 'props' in node) {
-    return extractText(
-      (node as { props: { children?: React.ReactNode } }).props.children
-    );
-  }
-  return '';
+function getCodeElement(
+  child: React.ReactNode
+): React.ReactElement<CodeProps> | null {
+  if (!isValidElement<CodeProps>(child)) return null;
+  return child;
 }
 
 function pickLang(className?: string): string | null {
@@ -29,32 +23,57 @@ function pickLang(className?: string): string | null {
   return m ? m[1] : null;
 }
 
-export default function CodeBlock({ className, children }: CodeBlockProps) {
-  const lang = pickLang(className);
-  // 行内 code 没有 language- 前缀
-  const isBlock = lang !== null;
-
-  if (!isBlock) {
-    return <code className={className}>{children}</code>;
+function flattenText(node: React.ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(flattenText).join('');
+  if (isValidElement(node)) {
+    const props = node.props as { children?: React.ReactNode };
+    return flattenText(props.children);
   }
+  return '';
+}
 
-  return <CodeBlockShell className={className} lang={lang}>{children}</CodeBlockShell>;
+export default function CodeBlock({
+  children,
+}: {
+  children?: React.ReactNode;
+}) {
+  const codeEl = getCodeElement(children);
+  if (!codeEl) {
+    return <>{children}</>;
+  }
+  const codeClassName = codeEl.props.className;
+  const lang = pickLang(codeClassName) ?? '';
+
+  return (
+    <CodeBlockShell lang={lang} codeClassName={codeClassName}>
+      {codeEl}
+    </CodeBlockShell>
+  );
 }
 
 function CodeBlockShell({
-  className,
   lang,
+  codeClassName,
   children,
 }: {
-  className?: string;
   lang: string;
-  children: React.ReactNode;
+  codeClassName?: string;
+  children: React.ReactElement<CodeProps>;
 }) {
   const [copied, setCopied] = useState(false);
-  const text = extractText(children).replace(/\n$/, '');
+
+  const preClass =
+    'hljs m-0 p-4 overflow-x-auto text-sm leading-relaxed ' +
+    'bg-neutral-50 dark:bg-[#0d1117] text-neutral-900 dark:text-neutral-100';
 
   const onCopy = useCallback(async () => {
     try {
+      const text = flattenText((children.props as CodeProps).children).replace(
+        /\n$/,
+        ''
+      );
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
       } else {
@@ -72,13 +91,17 @@ function CodeBlockShell({
     } catch (err) {
       console.error('复制失败', err);
     }
-  }, [text]);
+  }, [children]);
+
+  const inner = cloneElement(children, {
+    className: `hljs ${codeClassName ?? ''}`,
+  });
 
   return (
     <div className="code-block-wrapper not-prose my-4 rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-700">
       <div className="flex items-center justify-between px-3 py-1.5 text-xs border-b border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-[#161b22]">
         <span className="font-mono text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
-          {lang}
+          {lang || 'text'}
         </span>
         <button
           type="button"
@@ -90,9 +113,7 @@ function CodeBlockShell({
           <span>{copied ? '已复制' : '复制'}</span>
         </button>
       </div>
-      <pre className="hljs m-0 p-4 overflow-x-auto text-sm leading-relaxed bg-neutral-50 dark:bg-[#0d1117]">
-        <code className={className}>{children}</code>
-      </pre>
+      <pre className={preClass}>{inner}</pre>
     </div>
   );
 }

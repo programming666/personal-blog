@@ -122,7 +122,7 @@ const AnnouncementsPage = () => {
                   </time>
                 </header>
                 <div className="prose prose-neutral dark:prose-invert max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={{ code: CodeBlock }}>{trMap[item._id]?.content || item.content}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={{ pre: CodeBlock }}>{trMap[item._id]?.content || item.content}</ReactMarkdown>
                 </div>
                 {trMap[item._id] && (trMap[item._id].title !== item.title || trMap[item._id].content !== item.content) && (
                   <TranslatedBadge />

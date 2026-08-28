@@ -129,8 +129,8 @@ if (process.env.SERVE_FRONTEND === 'true') {
       const docs = await Setting.find({ key: { $in: ['site.title', 'site.favicon', 'site.logo', 'site.description'] } });
       docs.forEach((d) => {
         if (d.key === 'site.title' && d.value) meta.title = String(d.value);
-        if (d.key === 'site.favicon' && d.value?.path) meta.favicon = d.value.path;
-        if (d.key === 'site.logo' && d.value?.path) meta.logo = d.value.path;
+        if (d.key === 'site.favicon' && d.value) meta.favicon = String(d.value);
+        if (d.key === 'site.logo' && d.value) meta.logo = String(d.value);
         if (d.key === 'site.description' && d.value) meta.description = String(d.value);
       });
       siteMetaCache = meta;

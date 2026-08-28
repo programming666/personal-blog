@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import TranslatedBadge from '../components/TranslatedBadge';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import 'highlight.js/styles/github-dark.css';
+import '../styles/hljs-theme.css';
 import CodeBlock from '../components/CodeBlock';
 
 const AnnouncementsPage = () => {

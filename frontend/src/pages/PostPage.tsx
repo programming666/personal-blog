@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 // katex CSS 由 chunk 自行带出(路由级分包后只随文章页加载)
 import 'katex/dist/katex.min.css';
-import 'highlight.js/styles/github-dark.css'; // 代码块语法高亮主题(rehype-highlight 自动应用 class hljs xxx)
+import '../styles/hljs-theme.css'; // 代码块语法高亮主题(rehype-highlight 自动应用 class hljs xxx;见 styles/hljs-theme.css)
 import CodeBlock from '../components/CodeBlock';
 import { postsAPI, commentsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';

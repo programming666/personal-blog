@@ -7,7 +7,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import hljs from 'highlight.js/lib/common';
-import 'highlight.js/styles/github-dark.css';
+import '../styles/hljs-theme.css';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import CodeBlock from './CodeBlock';

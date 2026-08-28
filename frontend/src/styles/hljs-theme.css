@@ -1,0 +1,167 @@
+/*
+ * highlight.js token 主题 — 根据 :root.dark 自动切换浅色 / 深色
+ * 浅色:github 风格(白底深字 + 各种 token 颜色)
+ * 深色:github-dark 风格(深底浅字 + 各种 token 颜色)
+ * 仅作用 .hljs / [class*="language-"] 内的子元素,不影响其他 hljs 用户
+ */
+
+/* === 浅色模式(默认) === */
+.hljs,
+[class*="language-"] {
+  color: #24292e;
+  background: transparent;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-section,
+.hljs-link,
+.hljs-built_in,
+.hljs-meta-keyword,
+.hljs-type,
+.hljs-tag {
+  color: #d73a49;
+}
+
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-attr,
+.hljs-meta-string,
+.hljs-addition,
+.hljs-template-tag,
+.hljs-template-variable {
+  color: #032f62;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-doctag,
+.hljs-variable,
+.hljs-template-variable {
+  color: #005cc5;
+}
+
+.hljs-title,
+.hljs-name,
+.hljs-attribute,
+.hljs-function .hljs-title,
+.hljs-selector-id,
+.hljs-class .hljs-title {
+  color: #6f42c1;
+}
+
+.hljs-params,
+.hljs-class,
+.hljs-attr {
+  color: #24292e;
+}
+
+.hljs-regexp,
+.hljs-meta {
+  color: #e36209;
+}
+
+.hljs-deletion {
+  color: #b31d28;
+  background-color: #ffeef0;
+}
+
+.hljs-addition {
+  color: #22863a;
+  background-color: #f0fff4;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}
+
+/* === 深色模式 === */
+:root.dark .hljs,
+:root.dark [class*="language-"] {
+  color: #c9d1d9;
+  background: transparent;
+}
+
+:root.dark .hljs-comment,
+:root.dark .hljs-quote {
+  color: #8b949e;
+  font-style: italic;
+}
+
+:root.dark .hljs-keyword,
+:root.dark .hljs-selector-tag,
+:root.dark .hljs-section,
+:root.dark .hljs-link,
+:root.dark .hljs-built_in,
+:root.dark .hljs-meta-keyword,
+:root.dark .hljs-type,
+:root.dark .hljs-tag {
+  color: #ff7b72;
+}
+
+:root.dark .hljs-string,
+:root.dark .hljs-symbol,
+:root.dark .hljs-bullet,
+:root.dark .hljs-attr,
+:root.dark .hljs-meta-string,
+:root.dark .hljs-addition,
+:root.dark .hljs-template-tag,
+:root.dark .hljs-template-variable {
+  color: #a5d6ff;
+}
+
+:root.dark .hljs-number,
+:root.dark .hljs-literal,
+:root.dark .hljs-doctag,
+:root.dark .hljs-variable {
+  color: #79c0ff;
+}
+
+:root.dark .hljs-title,
+:root.dark .hljs-name,
+:root.dark .hljs-attribute,
+:root.dark .hljs-function .hljs-title,
+:root.dark .hljs-selector-id,
+:root.dark .hljs-class .hljs-title {
+  color: #d2a8ff;
+}
+
+:root.dark .hljs-params,
+:root.dark .hljs-class,
+:root.dark .hljs-attr {
+  color: #c9d1d9;
+}
+
+:root.dark .hljs-regexp,
+:root.dark .hljs-meta {
+  color: #ffa657;
+}
+
+:root.dark .hljs-deletion {
+  color: #ffdcd7;
+  background-color: #67060c;
+}
+
+:root.dark .hljs-addition {
+  color: #aff5b4;
+  background-color: #033a16;
+}
+
+:root.dark .hljs-emphasis {
+  font-style: italic;
+}
+
+:root.dark .hljs-strong {
+  font-weight: 700;
+}

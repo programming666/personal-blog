@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import hljs from 'highlight.js/lib/common';
-import 'highlight.js/styles/github-dark.css';
+import '../styles/hljs-theme.css';
 import { FaEye, FaEyeSlash, FaSave, FaUndo, FaRedo } from 'react-icons/fa';
 
 const MarkdownEditor = ({ initialContent, onSave, height = '600px' }) => {

@@ -113,6 +113,11 @@ if (process.env.SERVE_FRONTEND === 'true') {
     if (req.path !== '/' && (path.extname(req.path) !== '' || fs.existsSync(candidate))) {
       return res.status(404).end();
     }
+    // SPA fallback 返回 index.html 时强制 no-cache,避免浏览器缓存旧 index.html
+    // 导致引用的 chunk hash 在下次部署后失效
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }

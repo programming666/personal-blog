@@ -36,7 +36,7 @@ const Navbar = () => {
                 src={logoUrl}
                 alt="Logo"
                 width={36} height={36} loading="lazy"
-                className="w-9 h-9 rounded-xl object-cover border border-neutral-200 dark:border-neutral-800"
+                className="w-9 h-9 rounded-xl object-cover border border-neutral-200 dark:border-neutral-800 dark:invert"
               />
             ) : (
               <div className="w-9 h-9 rounded-xl bg-neutral-900 dark:bg-white grid place-items-center transition-transform group-hover:scale-105">

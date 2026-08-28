@@ -88,12 +88,19 @@ app.use('/api/uploads', require('./routes/upload.routes'));
 if (process.env.SERVE_FRONTEND === 'true') {
   const fs = require('fs');
   const distPath = path.resolve(__dirname, '..', 'frontend', 'dist');
-  // 哈希文件名(内容不变)长缓存 1 年 immutable;其余 7d
+  // 缓存策略:
+  //  - assets/* (哈希文件名,内容不变) → 1 年 immutable
+  //  - index.html → no-cache (每次部署 chunk 哈希都变,旧 index.html 会引用失效的 chunk)
+  //  - 其他非 asset 静态文件 → 7d
   app.use(express.static(distPath, {
     index: false,
     setHeaders(res, filePath) {
       if (filePath.includes(`${path.sep}assets${path.sep}`)) {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
       } else {
         res.setHeader('Cache-Control', 'public, max-age=604800');
       }

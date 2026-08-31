@@ -68,6 +68,13 @@ const zh: Record<string, string> = {
   'ann.pinned': '置顶',
   'ann.empty': '暂无公告',
   'ann.emptySub': '敬请期待',
+  // 友链
+  'nav.friends': '友链',
+  'friends.title': '友情链接',
+  'friends.subtitle': '值得关注的好友与站点',
+  'friends.loading': '加载中…',
+  'friends.loadError': '无法加载友链，请稍后再试',
+  'friends.empty': '暂无友链',
   // 登录
   'login.welcome': '欢迎回来',
   'login.subtitle': '使用 GitHub 账号继续，以发表评论',
@@ -141,6 +148,13 @@ const en: Record<string, string> = {
   'ann.subtitle': 'Latest news and notices from the admin',
   'ann.empty': 'No announcements',
   'ann.emptySub': 'Stay tuned',
+  // friend links
+  'nav.friends': 'Friends',
+  'friends.title': 'Friend Links',
+  'friends.subtitle': 'Friends and sites worth following',
+  'friends.loading': 'Loading…',
+  'friends.loadError': 'Failed to load friend links, please try again later',
+  'friends.empty': 'No friend links yet',
   'login.welcome': 'Welcome back',
   'login.subtitle': 'Continue with your GitHub account to leave comments',
   'login.github': 'Sign in with GitHub',

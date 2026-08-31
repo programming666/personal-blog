@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { Link, useLocation } from 'react-router-dom';
-import { FaHome, FaSignInAlt, FaBullhorn, FaUserCircle, FaMoon, FaSun, FaSignOutAlt, FaBlog, FaDesktop, FaGlobe } from 'react-icons/fa';
+import { FaHome, FaSignInAlt, FaBullhorn, FaUserCircle, FaMoon, FaSun, FaSignOutAlt, FaBlog, FaDesktop, FaGlobe, FaLink } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
@@ -54,6 +54,9 @@ const Navbar = () => {
             </Link>
             <Link to="/announcements" className={navLinkClass(isActive('/announcements'))}>
               <FaBullhorn /> {t('nav.announcements')}
+            </Link>
+            <Link to="/friends" className={navLinkClass(isActive('/friends'))}>
+              <FaLink /> {t('nav.friends')}
             </Link>
           </div>
 

@@ -15,6 +15,7 @@ const CreatePost = lazy(() => import('./pages/CreatePost'));
 const EditPost = lazy(() => import('./pages/EditPost'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'));
+const FriendsPage = lazy(() => import('./pages/FriendsPage'));
 
 const Fallback = () => (
   <div className="flex items-center justify-center py-24 text-neutral-400">
@@ -40,6 +41,7 @@ function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/announcements" element={<AnnouncementsPage />} />
+            <Route path="/friends" element={<FriendsPage />} />
           </Routes>
         </Suspense>
       </main>

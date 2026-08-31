@@ -19,7 +19,8 @@ import {
   FaPlus,
   FaEdit,
   FaRobot,
-  FaLanguage
+  FaLanguage,
+  FaLink
 } from 'react-icons/fa';
 import AdminAnnouncements from './AdminAnnouncements';
 import AdminSecurity from './AdminSecurity';
@@ -28,6 +29,7 @@ import AdminModerationQueue from './AdminModerationQueue';
 import AdminProfile from './AdminProfile';
 import AdminAiSettings from './AdminAiSettings';
 import AdminTranslationQueue from './AdminTranslationQueue';
+import AdminFriendLinks from './AdminFriendLinks';
 
 const tabs = [
   { id: 'stats', name: '统计概览', icon: FaChartBar },
@@ -40,7 +42,8 @@ const tabs = [
   { id: 'profile', name: '个人资料', icon: FaUser },
   { id: 'security', name: '安全', icon: FaShieldAlt },
   { id: 'aimodel', name: 'AI 审核', icon: FaRobot },
-  { id: 'translate', name: '翻译队列', icon: FaLanguage }
+  { id: 'translate', name: '翻译队列', icon: FaLanguage },
+  { id: 'friendlinks', name: '友链管理', icon: FaLink }
 ];
 
 const StatCard = ({ icon: Icon, label, value }) => (
@@ -339,7 +342,7 @@ const AdminPanel = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading && activeTab !== 'announcements' && activeTab !== 'settings' && activeTab !== 'security' && activeTab !== 'moderation' && activeTab !== 'profile' && activeTab !== 'aimodel' && activeTab !== 'translate' ? (
+        {loading && activeTab !== 'announcements' && activeTab !== 'settings' && activeTab !== 'security' && activeTab !== 'moderation' && activeTab !== 'profile' && activeTab !== 'aimodel' && activeTab !== 'translate' && activeTab !== 'friendlinks' ? (
           <div className="space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-20 rounded-2xl bg-neutral-100 dark:bg-neutral-800/60 animate-pulse"></div>
@@ -358,6 +361,7 @@ const AdminPanel = () => {
             {activeTab === 'security' && <AdminSecurity />}
             {activeTab === 'aimodel' && <AdminAiSettings />}
             {activeTab === 'translate' && <AdminTranslationQueue />}
+            {activeTab === 'friendlinks' && <AdminFriendLinks />}
           </>
         )}
       </main>

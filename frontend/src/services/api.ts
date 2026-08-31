@@ -125,6 +125,14 @@ export const announcementsAPI = {
   get: (id) => api.get(`/api/announcements/${id}`)
 };
 
+export const friendLinksAPI = {
+  list: (params) => api.get('/api/friend-links', { params }),
+  listAll: () => api.get('/api/friend-links/admin/all'),
+  create: (data) => api.post('/api/friend-links', data),
+  update: (id, data) => api.put(`/api/friend-links/${id}`, data),
+  remove: (id) => api.delete(`/api/friend-links/${id}`)
+};
+
 export const settingsAPI = {
   getPublic: () => api.get('/api/settings')
 };

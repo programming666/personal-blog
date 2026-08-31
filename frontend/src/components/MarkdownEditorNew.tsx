@@ -14,6 +14,7 @@ import CodeBlock from './CodeBlock';
 import { useTheme } from '../context/ThemeContext';
 import { adminAPI } from '../services/api';
 import { renderMarkdownImg } from '../utils/markdownImg.jsx';
+import { renderMarkdownLink } from '../utils/markdownLink.jsx';
 
 const MarkdownEditorNew = ({ initialContent, onSave, height = '600px' }) => {
   const { isDarkMode } = useTheme();
@@ -167,7 +168,7 @@ const MarkdownEditorNew = ({ initialContent, onSave, height = '600px' }) => {
               <ReactMarkdown
                 remarkPlugins={[remarkMath, remarkGfm]}
                 rehypePlugins={[rehypeKatex, rehypeHighlight]}
-                components={{ img: renderMarkdownImg, code: CodeBlock }}
+                components={{ img: renderMarkdownImg, code: CodeBlock, a: renderMarkdownLink }}
               >
                 {text}
               </ReactMarkdown>
@@ -195,6 +196,7 @@ const MarkdownEditorNew = ({ initialContent, onSave, height = '600px' }) => {
               components={{
                 img: renderMarkdownImg,
                 code: CodeBlock,
+                a: renderMarkdownLink,
                 code({ node, inline, className, children, ...props }) {
                   const match = /language-(\w+)/.exec(className || '');
                   const isInlineCode = inline || (!match && String(children).indexOf('\n') === -1);

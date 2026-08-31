@@ -186,7 +186,8 @@ if (process.env.SERVE_FRONTEND === 'true') {
           og.title = post.title;
           og.description = stripMarkdown(post.excerpt || post.content || '').slice(0, 150);
           const img = post.thumbnail || (post.images && post.images[0]);
-          if (img) og.image = img.startsWith('http') ? img : `${base}/${img.replace(/^\/+/, '')}`;
+          // 跳过 dataURL 遗留数据(旧前端曾把 base64 存进 thumbnail),避免拼出损坏的 og:image
+          if (img && !img.startsWith('data:')) og.image = img.startsWith('http') ? img : `${base}/${img.replace(/^\/+/, '')}`;
           og.url = `${base}/posts/${post.slug || post._id}`;
           og.type = 'article';
         }

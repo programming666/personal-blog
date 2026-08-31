@@ -142,11 +142,11 @@ const HomePage = () => {
                     </div>
                   )}
 
-                  <h2 className="text-lg font-semibold leading-snug text-neutral-900 dark:text-white line-clamp-2 mb-2">
+                  <h2 className="text-lg font-semibold leading-snug text-neutral-900 dark:text-white line-clamp-2 mb-2 min-h-[3.1rem]">
                     <Link to={`/posts/${post._id}`}>{trTitles[post._id]?.title || post.title}</Link>
                   </h2>
 
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-3 mb-4 flex-1">
+                  <p className="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-3 mb-4 flex-1 min-h-[3.75rem]">
                     {trTitles[post._id]?.summary || post.summary || (post.content ? stripMarkdown(post.content).substring(0, 140) + '…' : '')}
                   </p>
 {(() => {

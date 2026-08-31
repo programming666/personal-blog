@@ -6,6 +6,7 @@ import { getLang, t } from '../i18n';
 import { displayText, fetchTranslation, needsTranslation } from '../translate';
 import { FaArrowRight, FaEye, FaClock, FaSearch, FaChevronLeft, FaChevronRight, FaHeart } from 'react-icons/fa';
 import TranslatedBadge from '../components/TranslatedBadge';
+import { stripMarkdown } from '../utils/stripMarkdown';
 
 const HomePage = () => {
   const [posts, setPosts] = useState([]);
@@ -50,7 +51,7 @@ const HomePage = () => {
       await Promise.all(
         posts.map(async (p) => {
           const bodyOriginal = p.content || '';
-          const summaryFallback = bodyOriginal.substring(0, 140);
+          const summaryFallback = stripMarkdown(bodyOriginal).substring(0, 140);
           const summary = !bodyOriginal
             ? ''
             : !needsTranslation(bodyOriginal)
@@ -146,11 +147,11 @@ const HomePage = () => {
                   </h2>
 
                   <p className="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-3 mb-4 flex-1">
-                    {trTitles[post._id]?.summary || post.summary || (post.content ? post.content.substring(0, 140) + '…' : '')}
+                    {trTitles[post._id]?.summary || post.summary || (post.content ? stripMarkdown(post.content).substring(0, 140) + '…' : '')}
                   </p>
 {(() => {
                     const tr = trTitles[post._id];
-                    const rawSummary = post.summary || (post.content ? post.content.substring(0, 140) + '…' : '');
+                    const rawSummary = post.summary || (post.content ? stripMarkdown(post.content).substring(0, 140) + '…' : '');
                     const translated = (!!tr?.title && tr.title !== post.title) || (!!tr?.summary && tr.summary !== rawSummary);
                     return translated ? <TranslatedBadge /> : null;
                   })()}

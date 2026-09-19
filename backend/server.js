@@ -77,6 +77,7 @@ app.use(passport.initialize());
 require('./services/moderationQueueWorker').start();
 // 路由配置
 app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/auth/oauth', require('./routes/oauth.routes'));
 app.use('/api/posts', require('./routes/post.routes'));
 app.use('/api/comments', require('./routes/comment.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));

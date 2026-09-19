@@ -33,6 +33,8 @@ const {
 const { protect, authorize } = require('../middleware/auth.middleware');
 const { adminLoginLimiter, adminTwoFactorLimiter } = require('../middleware/rateLimit.middleware');
 const { upload, processAvatar } = require('../middleware/upload.middleware');
+const oauthController = require('../controllers/oauth.controller');
+const { processOauthIcon } = require('../middleware/upload.middleware');
 
 const router = express.Router();
 
@@ -84,5 +86,18 @@ router.post('/ai/config/test', protect, authorize('admin'), testAiConfig);
 // 翻译队列(译文入库于 Translation 集合)
 router.get('/translate/queue', protect, authorize('admin'), getTranslationQueue);
 router.post('/translate/queue/run', protect, authorize('admin'), runTranslationQueue);
+// 第三方登录配置(GitHub 内置项 + 任意标准 OAuth2/OIDC 提供方):文案/图标/密钥/端点
+router.get('/oauth/providers', protect, authorize('admin'), oauthController.getProvidersConfig);
+router.put('/oauth/providers', protect, authorize('admin'), oauthController.saveProvidersConfig);
+router.post(
+  '/oauth/providers/:id/icon',
+  protect,
+  authorize('admin'),
+  upload.single('icon'),
+  processOauthIcon,
+  oauthController.uploadProviderIcon
+);
+router.delete('/oauth/providers/:id/icon', protect, authorize('admin'), oauthController.deleteProviderIcon);
+
 
 module.exports = router;

@@ -133,7 +133,7 @@ const processFavicon = async (req, res, next) => {
     return next();
   }
   if (!FAVICON_MIMES.has(req.file.mimetype)) {
-    return next(Object.assign(new Error('favicon 仅支持 SVG / PNG / JPEG / WebP / GIF / AVIF'), { statusCode: 400 }));
+    return next(Object.assign(new Error('favicon 仅支持 SVG / PNG / JPEG / WebP / GIF / AVIF'), { status: 400 }));
   }
   try {
     const filename = `favicon-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
@@ -153,4 +153,32 @@ const processFavicon = async (req, res, next) => {
   }
 };
 
-module.exports = { upload, processImage, processGalleryImages, processGalleryImage, processLogo, processAvatar, processFavicon };
+// 第三方登录按钮图标:统一转 128x128 PNG(保留透明通道,尺寸够 retina 用)
+// SVG 先按 4x 密度栅格化,避免细线条糊掉;只接受图片类型,顺带消除 SVG 脚本注入面
+const OAUTH_ICON_MIMES = new Set([
+  'image/svg+xml', 'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'
+]);
+const processOauthIcon = async (req, res, next) => {
+  if (!req.file) {
+    return next();
+  }
+  if (!OAUTH_ICON_MIMES.has(req.file.mimetype)) {
+    return next(Object.assign(new Error('图标仅支持 SVG / PNG / JPEG / WebP / GIF / AVIF'), { status: 400 }));
+  }
+  try {
+    const filename = `oauth-${Date.now()}-${Math.round(Math.random() * 1e9)}.png`;
+    const filepath = path.join(uploadDir, filename);
+    const isSvg = req.file.mimetype === 'image/svg+xml';
+    await sharp(req.file.buffer, isSvg ? { density: 384 } : {})
+      .resize(128, 128, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toFile(filepath);
+    req.file.filename = filename;
+    req.file.path = `uploads/${filename}`;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { upload, processImage, processGalleryImages, processGalleryImage, processLogo, processAvatar, processFavicon, processOauthIcon };

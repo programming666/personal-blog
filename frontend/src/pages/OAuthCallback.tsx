@@ -1,11 +1,13 @@
 // @ts-nocheck
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaSpinner } from 'react-icons/fa';
 import { t } from '../i18n';
 
-const GitHubCallback = () => {
+// GitHub 与任意通用 OAuth2 提供方共用的回调落地点:
+// 后端在 302 回跳时已把本站 JWT 与用户信息放在 query 上,这里只负责落到 AuthContext。
+const OAuthCallback = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { setAuthToken, setAuthUser } = useAuth();
@@ -13,8 +15,8 @@ const GitHubCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // 从URL中获取token和用户信息
         const urlParams = new URLSearchParams(location.search);
+        const error = urlParams.get('error');
         const token = urlParams.get('token');
         const userId = urlParams.get('userId');
         const username = urlParams.get('username');
@@ -22,27 +24,31 @@ const GitHubCallback = () => {
         const name = urlParams.get('name');
         const avatar = urlParams.get('avatar');
 
+        if (error) {
+          navigate(`/login?error=${encodeURIComponent(error)}`, { replace: true });
+          return;
+        }
+
         if (token) {
-          // 设置用户数据
           const userData = {
             id: userId,
-            username: username,
-            email: email,
-            name: name,
-            avatar: decodeURIComponent(avatar || '')
+            username,
+            email,
+            name,
+            // URLSearchParams 已经解码过一次,再解一次会在头像地址含 '%' 时抛 URIError 把登录打断
+            avatar: avatar || ''
           };
-          
+
           setAuthToken(token, userData);
           setAuthUser(userData);
 
           navigate('/', { replace: true });
         } else {
-          // 如果没有token，重定向到登录页
           navigate('/login', { replace: true });
         }
-      } catch (error) {
-        console.error('GitHub callback error:', error);
-        navigate('/login', { replace: true });
+      } catch (err) {
+        console.error('OAuth callback error:', err);
+        navigate('/login?error=oauth_failed', { replace: true });
       }
     };
 
@@ -64,4 +70,4 @@ const GitHubCallback = () => {
   );
 };
 
-export default GitHubCallback;
+export default OAuthCallback;

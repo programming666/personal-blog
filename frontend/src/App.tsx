@@ -3,7 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
-import GitHubCallback from './pages/GitHubCallback';
+import OAuthCallback from './pages/OAuthCallback';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import './index.css';
@@ -36,7 +36,8 @@ function App() {
             <Route path="/posts/:id" element={<PostPage />} />
             <Route path="/create" element={<CreatePost />} />
             <Route path="/edit/:id" element={<EditPost />} />
-            <Route path="/github-callback" element={<GitHubCallback />} />
+            <Route path="/oauth-callback" element={<OAuthCallback />} />
+            <Route path="/github-callback" element={<OAuthCallback />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/admin" element={<AdminPage />} />

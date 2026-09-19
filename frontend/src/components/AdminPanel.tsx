@@ -20,6 +20,7 @@ import {
   FaEdit,
   FaRobot,
   FaLanguage,
+  FaKey,
   FaLink
 } from 'react-icons/fa';
 import AdminAnnouncements from './AdminAnnouncements';
@@ -30,6 +31,7 @@ import AdminProfile from './AdminProfile';
 import AdminAiSettings from './AdminAiSettings';
 import AdminTranslationQueue from './AdminTranslationQueue';
 import AdminFriendLinks from './AdminFriendLinks';
+import AdminOAuthProviders from './AdminOAuthProviders';
 
 const tabs = [
   { id: 'stats', name: '统计概览', icon: FaChartBar },
@@ -39,6 +41,7 @@ const tabs = [
   { id: 'moderation', name: '审核队列', icon: FaShieldAlt },
   { id: 'announcements', name: '公告管理', icon: FaBullhorn },
   { id: 'settings', name: '站点设置', icon: FaCog },
+  { id: 'oauth', name: '登录方式', icon: FaKey },
   { id: 'profile', name: '个人资料', icon: FaUser },
   { id: 'security', name: '安全', icon: FaShieldAlt },
   { id: 'aimodel', name: 'AI 审核', icon: FaRobot },
@@ -342,7 +345,7 @@ const AdminPanel = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading && activeTab !== 'announcements' && activeTab !== 'settings' && activeTab !== 'security' && activeTab !== 'moderation' && activeTab !== 'profile' && activeTab !== 'aimodel' && activeTab !== 'translate' && activeTab !== 'friendlinks' ? (
+        {loading && activeTab !== 'announcements' && activeTab !== 'settings' && activeTab !== 'security' && activeTab !== 'moderation' && activeTab !== 'profile' && activeTab !== 'aimodel' && activeTab !== 'translate' && activeTab !== 'friendlinks' && activeTab !== 'oauth' ? (
           <div className="space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-20 rounded-2xl bg-neutral-100 dark:bg-neutral-800/60 animate-pulse"></div>
@@ -362,6 +365,7 @@ const AdminPanel = () => {
             {activeTab === 'aimodel' && <AdminAiSettings />}
             {activeTab === 'translate' && <AdminTranslationQueue />}
             {activeTab === 'friendlinks' && <AdminFriendLinks />}
+            {activeTab === 'oauth' && <AdminOAuthProviders />}
           </>
         )}
       </main>

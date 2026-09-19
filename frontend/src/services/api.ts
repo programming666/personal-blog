@@ -41,7 +41,11 @@ export const authAPI = {
   adminLogout: () => api.post('/api/admin/logout'),
   adminTwoFactorVerify: (payload) => api.post('/api/admin/2fa/verify', payload),
   getCurrentUser: () => api.get('/api/auth/me'),
-  githubLogin: () => { window.location.href = `${api.defaults.baseURL}/api/auth/github`; }
+  githubLogin: () => { window.location.href = `${api.defaults.baseURL}/api/auth/github`; },
+  // 第三方登录:登录页按钮列表(公开接口,不含任何密钥)
+  getOAuthProviders: () => api.get('/api/auth/oauth/providers'),
+  // 按后端给的 startPath 起跳(/api/auth/github 或 /api/auth/oauth/<id>)
+  oauthLogin: (startPath) => { window.location.href = `${api.defaults.baseURL}${startPath}`; }
 };
 
 export const adminAPI = {
@@ -100,7 +104,18 @@ export const adminAPI = {
     return api.post('/api/uploads/image', fd, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
-  }
+  },
+  // 第三方登录配置(GitHub 内置项 + 任意标准 OAuth2/OIDC 提供方)
+  getOAuthProviders: () => api.get('/api/admin/oauth/providers'),
+  saveOAuthProviders: (providers) => api.put('/api/admin/oauth/providers', { providers }),
+  uploadOAuthIcon: (id, file) => {
+    const fd = new FormData();
+    fd.append('icon', file);
+    return api.post(`/api/admin/oauth/providers/${id}/icon`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  deleteOAuthIcon: (id) => api.delete(`/api/admin/oauth/providers/${id}/icon`)
 };
 
 export const postsAPI = {

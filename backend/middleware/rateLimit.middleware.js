@@ -21,6 +21,13 @@ const standardOpts = {
   standardHeaders: 'draft-8',
 };
 
+// 浏览器「顶层导航」型路由(第三方登录起跳/回调)的 429 不能回 JSON —— 用户会卡在一屏
+// {"success":false,...} 上且没有回登录页的路。统一跳回登录页并沿用笼统错误码
+const loginRedirectHandler = (code) => (req, res) => {
+  const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '');
+  res.redirect(`${base}/login?error=${code}`);
+};
+
 // 管理员登录:L4 — 阈值放宽到 10 次/15 分钟,避免 NAT 共享 IP 误伤正常登录;429 带 Retry-After
 exports.adminLoginLimiter = rateLimit({
   ...standardOpts,
@@ -36,6 +43,35 @@ exports.adminTwoFactorLimiter = rateLimit({
   max: 10,
   keyGenerator: ipKey,
   message: denyMessage('验证尝试过多，请稍后再试')
+});
+// 第三方登录起跳:同一 IP 15 分钟内最多 40 次(正常用户 1-2 次/次登录)
+exports.oauthStartLimiter = rateLimit({
+  ...standardOpts,
+  windowMs: 15 * minute,
+  max: 40,
+  keyGenerator: ipKey,
+  message: denyMessage('登录请求过多，请稍后再试'),
+  handler: loginRedirectHandler('oauth_failed')
+});
+
+// 第三方登录回调:state 校验能挡住「不带 cookie 的重放」,但攻击者可以拿自己那份合法 state
+// 反复触发一次出站换 token 请求,所以同样限速(比正常用户一次登录一次回调紧得多,仍留足余量)
+exports.oauthCallbackLimiter = rateLimit({
+  ...standardOpts,
+  windowMs: 15 * minute,
+  max: 20,
+  keyGenerator: ipKey,
+  message: denyMessage('登录请求过多，请稍后再试'),
+  handler: loginRedirectHandler('oauth_failed')
+});
+
+// 登录页每次打开都会读一次公开提供方列表 —— 阈值放宽到基本只挡脚本刷
+exports.oauthProvidersLimiter = rateLimit({
+  ...standardOpts,
+  windowMs: 15 * minute,
+  max: 120,
+  keyGenerator: ipKey,
+  message: denyMessage('请求过于频繁，请稍后再试')
 });
 
 // 评论:三层 — IP 限制 + 每用户限制 + 慢响应惩罚

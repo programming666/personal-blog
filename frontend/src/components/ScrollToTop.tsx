@@ -19,7 +19,7 @@ import { useLocation, useNavigationType } from 'react-router-dom';
 
 const STORAGE_KEY = 'blog:scroll-positions';
 const MAX_ENTRIES = 50;
-const RESTORE_TIMEOUT = 1000;
+const RESTORE_TIMEOUT = 2500; // 兜底期限:由内容高度变化驱动重试,超时即收手
 
 type ScrollRecord = { path: string; y: number };
 
@@ -131,23 +131,51 @@ function ScrollToTop() {
     }
 
     let frame = 0;
-    let interrupted = false;
-    const startedAt = performance.now();
-    const stop = () => {
-      interrupted = true;
+    let finished = false;
+    let observer: ResizeObserver | null = null;
+    let deadline = 0;
+
+    const finish = () => {
+      finished = true;
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
+      if (deadline) clearTimeout(deadline);
+      deadline = 0;
+      observer?.disconnect();
+      observer = null;
     };
-    const restore = () => {
+
+    // 只做"滚到目标",成不成交给调用方判断:异步页面可能几轮渲染后才够长,
+    // 所以由文档高度变化(骨架屏→内容)驱动重试,而不是死等固定时长的定时重试
+    const attempt = () => {
       frame = 0;
-      if (interrupted) return;
-      window.scrollTo(0, wanted);
-      // 没滚到位 = 页面内容(懒加载 chunk / 异步接口)还没撑开文档高度
-      if (Math.abs(window.scrollY - wanted) > 2 && performance.now() - startedAt < RESTORE_TIMEOUT) {
-        frame = requestAnimationFrame(restore);
-      }
+      if (finished) return;
+      if (window.scrollY !== wanted) window.scrollTo(0, wanted);
+      if (Math.abs(window.scrollY - wanted) <= 2) finish();
     };
-    restore();
+    const schedule = () => {
+      if (!finished && !frame) frame = requestAnimationFrame(attempt);
+    };
+
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(schedule);
+      observer.observe(document.documentElement);
+      if (document.body) observer.observe(document.body);
+    } else {
+      // 兜底:拿不到高度变化通知就退回逐帧重试(老浏览器)
+      const poll = () => {
+        attempt();
+        if (!finished) frame = requestAnimationFrame(poll);
+      };
+      frame = requestAnimationFrame(poll);
+    }
+    schedule();
+    // 兜底期限:内容始终不够长(或被别的东西反复挤动)时到此收手,释放监听
+    deadline = window.setTimeout(() => {
+      attempt();
+      finish();
+    }, RESTORE_TIMEOUT);
+    const stop = () => finish();
     // 用户自己一动就放弃恢复,不跟用户抢滚动
     window.addEventListener('wheel', stop, { passive: true, once: true });
     window.addEventListener('touchstart', stop, { passive: true, once: true });

@@ -60,6 +60,9 @@ function ScrollToTop() {
   // 记录用的 key/path 取"滚动发生那一刻"的当前位置:导航提交后上一页的 scroll 监听
   // 可能还活着(React 清理被动 effect 与浏览器派发 scroll 事件没有固定顺序),
   // 沿用闭包里的旧 key 写会把上一页的记录覆盖成新页面的 scrollTo(0,0) 结果(0)
+  // TEMP DEBUG — 定位生产环境恢复位置失效的原因,诊断完删除
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dbg = (o: Record<string, unknown>) => { try { const w = window as any; w.__st = w.__st || []; if (w.__st.length < 300) w.__st.push({ t: Math.round(performance.now()), ...o }); } catch { /* ignore */ } };
   const live = useRef({ key, path });
   useLayoutEffect(() => {
     live.current = { key, path };
@@ -75,6 +78,7 @@ function ScrollToTop() {
       const y = window.scrollY;
       frame = requestAnimationFrame(() => {
         frame = 0;
+        dbg({ ev: 'record', key: at, path: atPath, y: Math.round(y) });
         positions.set(at, { path: atPath, y });
       });
     };
@@ -125,6 +129,7 @@ function ScrollToTop() {
     const saved = navigationType === 'POP' ? positions.get(key) : undefined;
     // 路径不一致说明这条记录属于另一个页面(浏览器直接加载的条目 key 会重复),不要套用
     const wanted = saved && saved.path === path ? saved.y : 0;
+    dbg({ ev: 'start', key, path, navigationType, saved, wanted, y: Math.round(window.scrollY), docH: document.documentElement.scrollHeight });
     if (wanted <= 0) {
       window.scrollTo(0, 0);
       return;
@@ -135,8 +140,10 @@ function ScrollToTop() {
     let observer: ResizeObserver | null = null;
     let deadline = 0;
 
-    const finish = () => {
+    const finish = (reason: string) => {
+      if (finished) return;
       finished = true;
+      dbg({ ev: 'finish', reason, y: Math.round(window.scrollY), docH: document.documentElement.scrollHeight });
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
       if (deadline) clearTimeout(deadline);
@@ -151,9 +158,11 @@ function ScrollToTop() {
       frame = 0;
       if (finished) return;
       if (window.scrollY !== wanted) window.scrollTo(0, wanted);
-      if (Math.abs(window.scrollY - wanted) <= 2) finish();
+      dbg({ ev: 'attempt', wanted, y: Math.round(window.scrollY), docH: document.documentElement.scrollHeight });
+      if (Math.abs(window.scrollY - wanted) <= 2) finish('ok');
     };
     const schedule = () => {
+      dbg({ ev: 'observer', y: Math.round(window.scrollY), docH: document.documentElement.scrollHeight });
       if (!finished && !frame) frame = requestAnimationFrame(attempt);
     };
 
@@ -173,15 +182,16 @@ function ScrollToTop() {
     // 兜底期限:内容始终不够长(或被别的东西反复挤动)时到此收手,释放监听
     deadline = window.setTimeout(() => {
       attempt();
-      finish();
+      finish('deadline');
     }, RESTORE_TIMEOUT);
-    const stop = () => finish();
+    const stop = () => finish('user');
     // 用户自己一动就放弃恢复,不跟用户抢滚动
     window.addEventListener('wheel', stop, { passive: true, once: true });
     window.addEventListener('touchstart', stop, { passive: true, once: true });
     window.addEventListener('pointerdown', stop, { once: true });
     window.addEventListener('keydown', stop, { once: true });
     return () => {
+      dbg({ ev: 'cleanup', key, path });
       stop();
       window.removeEventListener('wheel', stop);
       window.removeEventListener('touchstart', stop);

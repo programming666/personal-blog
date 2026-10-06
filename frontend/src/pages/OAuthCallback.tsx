@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaSpinner } from 'react-icons/fa';
 import { t } from '../i18n';
+import '../styles/journal.css';
 
 // GitHub 与任意通用 OAuth2 提供方共用的回调落地点:
 // 后端在 302 回跳时已把本站 JWT 与用户信息放在 query 上,这里只负责落到 AuthContext。
@@ -56,15 +57,11 @@ const OAuthCallback = () => {
   }, [location, navigate, setAuthToken, setAuthUser]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-      <div className="text-center">
-        <FaSpinner className="animate-spin text-4xl text-primary mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-          {t('cb.processing')}
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400">
-          {t('cb.redirect')}
-        </p>
+    <div className="journal-page journal-callback" id="journal-content" role="status" aria-live="polite">
+      <div className="journal-callback-card">
+        <FaSpinner className="animate-spin journal-callback-spinner" aria-hidden="true" />
+        <h1>{t('cb.processing')}</h1>
+        <p>{t('cb.redirect')}</p>
       </div>
     </div>
   );

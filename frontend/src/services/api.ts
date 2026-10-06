@@ -49,6 +49,8 @@ export const authAPI = {
 };
 
 export const adminAPI = {
+  getPresentation: () => api.get('/api/admin/presentation'),
+  savePresentation: (data) => api.put('/api/admin/presentation', data),
   getStats: () => api.get('/api/admin/stats'),
   getUsers: () => api.get('/api/admin/users'),
   getPosts: () => api.get('/api/admin/posts'),

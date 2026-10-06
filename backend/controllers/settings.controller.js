@@ -1,6 +1,7 @@
 const Setting = require('../models/Setting');
 const path = require('path');
 const fs = require('fs');
+const { PRESENTATION_KEY, getPresentation } = require('../services/presentation');
 
 const LOGO_KEY = 'site.logo';
 const FAVICON_KEY = 'site.favicon';
@@ -8,10 +9,16 @@ const FAVICON_KEY = 'site.favicon';
 exports.getPublicSettings = async (req, res) => {
   try {
     const docs = await Setting.find({
-      key: { $in: [LOGO_KEY, FAVICON_KEY, 'site.title'] }
+      key: { $in: [LOGO_KEY, FAVICON_KEY, 'site.title', PRESENTATION_KEY] }
     });
     const obj = {};
-    docs.forEach(d => { obj[d.key] = d.value; });
+    for (const key of [LOGO_KEY, FAVICON_KEY]) {
+      const media = docs.find(doc => doc.key === key)?.value;
+      if (typeof media?.path === 'string') obj[key] = { path: media.path };
+    }
+    const presentation = await getPresentation(docs);
+    obj['site.title'] = presentation.brand.name.zh;
+    obj[PRESENTATION_KEY] = presentation;
     res.status(200).json({ success: true, data: obj });
   } catch (error) {
     res.status(500).json({ success: false, message: '服务器内部错误' });

@@ -59,6 +59,7 @@ router.put(
 );
 
 router.get('/stats', protect, authorize('admin'), getStats);
+router.use('/presentation', require('./presentation.routes'));
 
 router.get('/users', protect, authorize('admin'), getAllUsers);
 router.put('/users/:id/status', protect, authorize('admin'), updateUserStatus);

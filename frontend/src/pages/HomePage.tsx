@@ -2,220 +2,126 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { postsAPI } from '../services/api';
+import { useSettings } from '../context/SettingsContext';
 import { getLang, t } from '../i18n';
 import { displayText, fetchTranslation, needsTranslation } from '../translate';
-import { FaArrowRight, FaEye, FaClock, FaSearch, FaChevronLeft, FaChevronRight, FaHeart } from 'react-icons/fa';
+import { FaArrowRight, FaEye, FaChevronLeft, FaChevronRight, FaHeart } from 'react-icons/fa';
 import TranslatedBadge from '../components/TranslatedBadge';
+import JournalHero from '../components/JournalHero';
 import { stripMarkdown } from '../utils/stripMarkdown';
+import '../styles/journal.css';
 
 const HomePage = () => {
+  const { presentation } = useSettings();
+  const pageSize = presentation.posts.pageSize;
+  const [pagination, setPagination] = useState({ page: 1, size: pageSize });
+  const page = pagination.size === pageSize ? pagination.page : 1;
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
+  const [retry, setRetry] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [trTitles, setTrTitles] = useState({}); // en 模式:卡片标题/摘要译文
+  const [trTitles, setTrTitles] = useState({});
   const lang = getLang();
+  const isCards = presentation.posts.layout === 'cards';
 
-  const formatDate = (dateString) =>
-    new Date(dateString).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+  const formatDate = (value) => new Date(value).toLocaleDateString(lang === 'en' ? 'en-GB' : 'zh-CN', { year: 'numeric', month: 'short', day: 'numeric' });
+  const summaryOf = (post) => stripMarkdown(post.summary || post.content || '').substring(0, 160);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchPosts = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-        const response = await postsAPI.getAllPosts({ page, limit: 9 });
-        setPosts(response.data.data);
-        setTotalPages(response.data.pagination.pages);
+        const response = await postsAPI.getAllPosts({ page, limit: pageSize });
+        if (cancelled) return;
+        setPosts(response.data.data || []);
+        setTotalPages(Math.max(1, response.data.pagination?.pages || 1));
       } catch (err) {
-        setError(t('home.error'));
+        if (!cancelled) setError(t('home.error'));
         console.error('Error fetching posts:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchPosts();
-    window.scrollTo(0, 0);
-  }, [page]);
+    return () => { cancelled = true; };
+  }, [page, pageSize, retry]);
 
-  // AI 翻译:按站点语言拉取卡片标题与摘要译文(摘要取正文译文前 140 字);原文已含目标语言直接展示原文
   useEffect(() => {
     if (!posts.length) return;
     let cancelled = false;
     (async () => {
       const map = {};
-      await Promise.all(
-        posts.map(async (p) => {
-          const bodyOriginal = p.content || '';
-          const summaryFallback = stripMarkdown(bodyOriginal).substring(0, 140);
-          const summary = !bodyOriginal
-            ? ''
-            : !needsTranslation(bodyOriginal)
-              ? summaryFallback
-              : (await fetchTranslation('post', p._id, 'body'))?.substring(0, 140) || summaryFallback;
-          const title = await displayText('post', p._id, 'title', p.title || '');
-          if (!cancelled) map[p._id] = { title, summary };
-        })
-      );
+      await Promise.all(posts.map(async (post) => {
+        const bodyOriginal = post.content || '';
+        const summaryFallback = summaryOf(post);
+        const summary = bodyOriginal && needsTranslation(bodyOriginal)
+          ? stripMarkdown((await fetchTranslation('post', post._id, 'body')) || '').substring(0, 160) || summaryFallback
+          : summaryFallback;
+        const title = await displayText('post', post._id, 'title', post.title || '');
+        if (!cancelled) map[post._id] = { title, summary };
+      }));
       if (!cancelled) setTrTitles(map);
     })();
     return () => { cancelled = true; };
   }, [posts, lang]);
 
-  const handlePageChange = (newPage) => {
-    if (newPage > 0 && newPage <= totalPages) setPage(newPage);
+  const handlePageChange = (next) => {
+    if (next < 1 || next > totalPages || loading) return;
+    setPagination({ page: next, size: pageSize });
+    document.getElementById('journal-entries')?.scrollIntoView({ block: 'start' });
   };
+  const pageNumbers = Array.from(new Set([1, page - 1, page, page + 1, totalPages])).filter(n => n > 0 && n <= totalPages).sort((a, b) => a - b);
 
   return (
-    <div>
-      <section className="border-b border-neutral-200 dark:border-neutral-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-28 text-center">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 mb-6">
-            {t('home.tagline')}
-          </span>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-900 dark:text-white">
-            {t('home.heroTitle')}
-          </h1>
-          <p className="mt-6 max-w-2xl mx-auto text-base sm:text-lg text-neutral-500 dark:text-neutral-400 leading-relaxed">
-            {t('home.heroSub')}
-          </p>
+    <div className="journal-page" id="journal-content">
+      <JournalHero presentation={presentation} lang={lang} />
+      <section className="journal-shell journal-entries" id="journal-entries" aria-labelledby="journal-entries-title" aria-busy={loading}>
+        <div className="journal-section-heading">
+          <div><span className="journal-eyebrow">THE JOURNAL</span><h2 id="journal-entries-title">{lang === 'en' ? 'Recent writing' : '最近的文字'}</h2></div>
+          <span className="journal-section-caption">{lang === 'en' ? 'Ideas, experiences & things worth keeping.' : '记录想法，也收藏日常。'}</span>
         </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        {error && (
-          <div className="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 dark:bg-red-500/5 dark:border-red-500/30 dark:text-red-400">
-            {error}
-          </div>
-        )}
-
-        {loading && page === 1 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-80 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-900/50 animate-pulse"
-              />
-            ))}
+        {error ? (
+          <div className="journal-empty" role="alert"><p>{error}</p><button className="btn btn-secondary" onClick={() => setRetry(n => n + 1)}>{lang === 'en' ? 'Try again' : '重新加载'}</button></div>
+        ) : loading ? (
+          <div className={isCards ? 'journal-post-grid' : 'journal-post-list'} role="status" aria-label={lang === 'en' ? 'Loading articles' : '正在加载文章'}>
+            {Array.from({ length: 3 }, (_, i) => <div key={i} className="journal-post-skeleton"><div /><div /><div /></div>)}
           </div>
         ) : posts.length === 0 ? (
-          <div className="text-center py-20 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-            <div className="w-16 h-16 mx-auto rounded-full border border-neutral-200 dark:border-neutral-800 grid place-items-center mb-4">
-              <FaSearch className="text-2xl text-neutral-400" />
-            </div>
-            <h3 className="text-xl font-semibold text-neutral-700 dark:text-neutral-200">{t('home.empty')}</h3>
-            <p className="mt-2 text-neutral-500 dark:text-neutral-400">{t('home.emptySub')}</p>
-          </div>
+          <div className="journal-empty"><span className="journal-empty-mark" aria-hidden="true">¶</span><h3>{t('home.empty')}</h3><p>{t('home.emptySub')}</p></div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post) => (
-              <article
-                key={post._id}
-                className="group card card-hover flex flex-col overflow-hidden"
-              >
-                <Link to={`/posts/${post._id}`} className="block">
-                  <div className="aspect-[16/9] bg-neutral-100 dark:bg-neutral-900 overflow-hidden border-b border-neutral-200 dark:border-neutral-800">
-                    {post.thumbnail ? (
-                      <img
-                        src={post.thumbnail}
-                        alt={post.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full grid place-items-center text-4xl text-neutral-300 dark:text-neutral-700">
-                        📝
-                      </div>
-                    )}
-                  </div>
-                </Link>
-
-                <div className="p-6 flex flex-col flex-1">
-                  {post.tags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-3">
-                      {post.tags.slice(0, 3).map((tag) => (
-                        <span key={tag} className="tag">{tag}</span>
-                      ))}
+          <div className={isCards ? 'journal-post-grid' : 'journal-post-list'}>
+            {posts.map((post, index) => {
+              const translated = trTitles[post._id];
+              const title = translated?.title || post.title;
+              const summary = translated?.summary || summaryOf(post);
+              const hasTranslation = (translated?.title && translated.title !== post.title) || (translated?.summary && translated.summary !== summaryOf(post));
+              return (
+                <article key={post._id} className={`journal-post ${isCards ? 'journal-post-card' : ''}`}>
+                  <div className="journal-post-index"><span>{String((page - 1) * pageSize + index + 1).padStart(2, '0')}</span><time dateTime={post.createdAt}>{formatDate(post.createdAt)}</time></div>
+                  <div className="journal-post-body">
+                    {post.tags?.length > 0 && <div className="journal-post-tags">{post.tags.slice(0, 3).map(tag => <span key={tag}>{tag}</span>)}</div>}
+                    <h3><Link to={`/posts/${post._id}`}>{title}</Link></h3>
+                    {summary && <p className="journal-post-summary">{summary}</p>}
+                    {hasTranslation && <TranslatedBadge />}
+                    <div className="journal-post-bottom">
+                      <div className="journal-post-metadata"><span aria-label={`${post.viewCount || 0} ${lang === 'en' ? 'views' : '次阅读'}`}><FaEye aria-hidden="true" /> {post.viewCount || 0}</span><span aria-label={`${post.likes?.length || 0} ${lang === 'en' ? 'likes' : '个赞'}`}><FaHeart aria-hidden="true" /> {post.likes?.length || 0}</span></div>
+                      <Link to={`/posts/${post._id}`} className="journal-read-link">{t('home.read')} <FaArrowRight aria-hidden="true" /></Link>
                     </div>
-                  )}
-
-                  <h2 className="text-lg font-semibold leading-snug text-neutral-900 dark:text-white line-clamp-2 mb-2 min-h-[3.1rem]">
-                    <Link to={`/posts/${post._id}`}>{trTitles[post._id]?.title || post.title}</Link>
-                  </h2>
-
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-3 mb-4 flex-1 min-h-[3.75rem]">
-                    {trTitles[post._id]?.summary || post.summary || (post.content ? stripMarkdown(post.content).substring(0, 140) + '…' : '')}
-                  </p>
-{(() => {
-                    const tr = trTitles[post._id];
-                    const rawSummary = post.summary || (post.content ? stripMarkdown(post.content).substring(0, 140) + '…' : '');
-                    const translated = (!!tr?.title && tr.title !== post.title) || (!!tr?.summary && tr.summary !== rawSummary);
-                    return translated ? <TranslatedBadge /> : null;
-                  })()}
-
-                  <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1">
-                        <FaClock /> {formatDate(post.createdAt)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <FaEye /> {post.viewCount || 0}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <FaHeart /> {post.likes?.length || 0}
-                      </span>
-                    </div>
-                    <Link
-                      to={`/posts/${post._id}`}
-                      className="flex items-center gap-1 font-medium text-neutral-900 dark:text-white group-hover:gap-2 transition-all"
-                    >
-                      {t('home.read')} <FaArrowRight className="text-[10px]" />
-                    </Link>
                   </div>
-                </div>
-              </article>
-            ))}
+                  {presentation.posts.showCover && post.thumbnail && <Link to={`/posts/${post._id}`} className="journal-post-cover" tabIndex={-1} aria-hidden="true"><img src={post.thumbnail} alt="" loading="lazy" /></Link>}
+                </article>
+              );
+            })}
           </div>
         )}
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center mt-12 gap-1">
-            <button
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page === 1}
-              className="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              aria-label={t('home.prev')}
-            >
-              <FaChevronLeft />
-            </button>
-
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-              <button
-                key={n}
-                onClick={() => handlePageChange(n)}
-                className={`min-w-[40px] h-10 rounded-lg text-sm font-medium transition-colors ${
-                  page === n
-                    ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900'
-                    : 'border border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-white'
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-
-            <button
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page === totalPages}
-              className="p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 hover:border-neutral-900 dark:hover:border-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              aria-label={t('home.next')}
-            >
-              <FaChevronRight />
-            </button>
-          </div>
-        )}
+        {!error && totalPages > 1 && <nav className="journal-pagination" aria-label={lang === 'en' ? 'Article pages' : '文章分页'}>
+          <button onClick={() => handlePageChange(page - 1)} disabled={page === 1 || loading} aria-label={t('home.prev')}><FaChevronLeft /></button>
+          {pageNumbers.map((n, index) => <span key={n} className="journal-pagination-item">{index > 0 && n - pageNumbers[index - 1] > 1 && <span className="journal-pagination-gap">…</span>}<button onClick={() => handlePageChange(n)} disabled={loading} aria-current={n === page ? 'page' : undefined} aria-label={`${lang === 'en' ? 'Page' : '第'} ${n}${lang === 'en' ? '' : ' 页'}`}>{n}</button></span>)}
+          <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages || loading} aria-label={t('home.next')}><FaChevronRight /></button>
+        </nav>}
       </section>
     </div>
   );

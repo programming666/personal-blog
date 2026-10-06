@@ -1,7 +1,9 @@
 // @ts-nocheck
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FaFileContract, FaArrowLeft } from 'react-icons/fa';
+import { FaArrowLeft } from 'react-icons/fa';
+import { getLang } from '../i18n';
+import '../styles/journal.css';
 
 const section = 'text-xl font-semibold text-neutral-900 dark:text-white mb-3';
 const body = 'text-neutral-700 dark:text-neutral-300 leading-relaxed';
@@ -9,23 +11,16 @@ const list = 'list-disc pl-6 mt-2 space-y-1 text-neutral-700 dark:text-neutral-3
 
 const TermsPage = () => {
   return (
-    <div>
-      <section className="border-b border-neutral-200 dark:border-neutral-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-          <div className="w-14 h-14 rounded-2xl mx-auto mb-5 border border-neutral-200 dark:border-neutral-800 grid place-items-center">
-            <FaFileContract className="text-2xl text-neutral-900 dark:text-white" />
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-neutral-900 dark:text-white">
-            服务条款
-          </h1>
-          <p className="mt-4 max-w-xl mx-auto text-neutral-500 dark:text-neutral-400">
-            最后更新日期：2025年8月
-          </p>
-        </div>
-      </section>
+    <div className="journal-page" id="journal-content">
+      <header className="journal-page-heading journal-shell">
+        <p className="journal-eyebrow"><span className="journal-small-rule" />TERMS OF SERVICE</p>
+        <h1>{getLang() === 'en' ? 'Terms of service' : '服务条款'}</h1>
+        <p>{getLang() === 'en' ? 'Last updated: August 2025 · Original text in Chinese' : '最后更新日期：2025 年 8 月'}</p>
+        <span className="journal-page-flourish" aria-hidden="true">§</span>
+      </header>
 
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="card p-6 sm:p-10 space-y-10">
+      <section className="journal-legal-reading">
+        <div className="journal-legal-content space-y-10" lang="zh-CN">
           <section>
             <h2 className={section}>1. 接受条款</h2>
             <p className={body}>

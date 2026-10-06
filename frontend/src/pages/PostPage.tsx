@@ -18,6 +18,7 @@ import TranslatedBadge from '../components/TranslatedBadge';
 import { renderMarkdownImg } from '../utils/markdownImg.jsx';
 import { renderMarkdownLink } from '../utils/markdownLink.jsx';
 import { FaEdit, FaTrash, FaEye, FaComment, FaArrowLeft, FaUser, FaCalendarAlt, FaHeart, FaRegHeart, FaInfoCircle } from 'react-icons/fa';
+import '../styles/journal.css';
 import TurnstileWidget from '../components/TurnstileWidget';
 
 const COMMENT_MAX = 100;
@@ -110,6 +111,10 @@ const PostPage = () => {
     if (post?._id) fetchComments();
   }, [post]);
 
+  useEffect(() => {
+    if (post?.title) document.title = trPost?.title || post.title;
+  }, [post?.title, trPost?.title]);
+
   // AI 翻译:按站点语言把非目标语言内容(如英文评论→中文)拉取译文;原文已含目标语言直接展示原文
   useEffect(() => {
     if (!post) return;
@@ -139,19 +144,6 @@ const PostPage = () => {
     })();
     return () => { cancelled = true; };
   }, [comments, lang]);
-
-  useEffect(() => {
-    if (!post) return;
-    const highlight = () => {
-      document.querySelectorAll('.markdown-content pre code').forEach((block) => {
-        if (!block.dataset.highlighted) {
-          hljs.highlightElement(block);
-        }
-      });
-    };
-    const t = setTimeout(highlight, 0);
-    return () => clearTimeout(t);
-  }, [post]);
 
   const handleLikePost = async () => {
     if (!user) {
@@ -302,7 +294,7 @@ const PostPage = () => {
     const isOwner = !!userIdStr && comment.author?._id && String(comment.author._id) === userIdStr;
     const replyToName = comment.replyTo?.name || comment.replyTo?.username || comment.replyTo?.author?.name || comment.replyTo?.author?.username;
     return (
-      <div key={comment._id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5">
+      <div key={comment._id} className="journal-comment-card">
         <div className="flex items-start gap-3 mb-3">
           <Avatar user={comment.author} size="sm" />
           <div className="flex-1 min-w-0">
@@ -497,7 +489,7 @@ const PostPage = () => {
   const commentOver = !isAdmin && commentText.length > COMMENT_MAX;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div className="journal-page journal-reading" id="journal-content">
       <Link
         to="/"
         className="inline-flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white mb-8 transition-colors"
@@ -506,7 +498,7 @@ const PostPage = () => {
       </Link>
 
       <article>
-        <header className="mb-8">
+        <header className="journal-article-heading">
           {post.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-4">
               {post.tags.map((tag) => (
@@ -515,7 +507,7 @@ const PostPage = () => {
             </div>
           )}
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-neutral-900 dark:text-white leading-tight">
+          <h1 className="journal-article-title">
             {trPost?.title || post.title}
           </h1>
           {trPost?.title && trPost.title !== post.title && needsTranslation(post.title, lang) && (
@@ -557,7 +549,7 @@ const PostPage = () => {
         </header>
 
         {post.thumbnail && (
-          <div className="aspect-[16/9] rounded-2xl overflow-hidden mb-10 bg-neutral-100 dark:bg-neutral-800">
+          <div className="journal-article-cover">
             <img src={post.thumbnail} alt={post.title} className="w-full h-full object-cover" />
           </div>
         )}
@@ -604,7 +596,7 @@ const PostPage = () => {
 
         )}
 
-        <div className="markdown-content prose prose-lg prose-neutral dark:prose-invert max-w-none">
+        <div className="markdown-content journal-prose prose prose-lg prose-neutral dark:prose-invert max-w-none">
 
           <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex, rehypeHighlight]} components={{ img: renderMarkdownImg, pre: CodeBlock, a: renderMarkdownLink }}>
 
@@ -640,7 +632,7 @@ const PostPage = () => {
         </div>
       </article>
 
-      <section className="mt-16">
+      <section className="journal-comments">
         <h2 className="text-2xl font-bold text-neutral-900 dark:text-white mb-6 flex items-center gap-2">
           <FaComment /> {t('post.comments')}
           <span className="text-base font-normal text-neutral-500 dark:text-neutral-400">({comments.length})</span>

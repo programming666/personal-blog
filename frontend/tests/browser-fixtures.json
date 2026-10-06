@@ -1,0 +1,135 @@
+{
+  "presentation": {
+    "version": 1,
+    "brand": {
+      "name": {
+        "zh": "秦一宁",
+        "en": "Qinyining"
+      },
+      "description": {
+        "zh": "关于技术、创造，以及值得记住的小事。",
+        "en": "On technology, making things, and moments worth keeping."
+      }
+    },
+    "home": {
+      "eyebrow": {
+        "zh": "保持好奇，慢慢生长",
+        "en": "NOTES ON BUILDING & LIVING"
+      },
+      "title": {
+        "zh": "在代码之间，记录生活的回声。",
+        "en": "Between code and everyday life."
+      },
+      "subtitle": {
+        "zh": "把探索写成文字，让想法在这里生长。",
+        "en": "A journal of experiments, ideas, and everyday discoveries."
+      },
+      "authorName": "秦一宁",
+      "authorBio": {
+        "zh": "一个持续学习、记录与创造的人。",
+        "en": "Always learning, writing, and building."
+      },
+      "showAuthor": true
+    },
+    "theme": {
+      "accent": "#3c6857",
+      "paper": "warm",
+      "headingFont": "serif",
+      "mode": "system"
+    },
+    "posts": {
+      "layout": "list",
+      "showCover": true,
+      "pageSize": 9
+    },
+    "navigation": [
+      {
+        "id": "home",
+        "label": {
+          "zh": "文章",
+          "en": "Journal"
+        },
+        "visible": true
+      },
+      {
+        "id": "announcements",
+        "label": {
+          "zh": "公告",
+          "en": "Notes"
+        },
+        "visible": true
+      },
+      {
+        "id": "friends",
+        "label": {
+          "zh": "友邻",
+          "en": "Friends"
+        },
+        "visible": true
+      }
+    ],
+    "footer": {
+      "copyright": {
+        "zh": "© {year} {name}. 保持好奇，认真生活。",
+        "en": "© {year} {name}. Made with curiosity."
+      },
+      "filing": "",
+      "filingUrl": "",
+      "socials": []
+    }
+  },
+  "admin": {
+    "_id": "admin-1",
+    "username": "admin",
+    "name": "测试管理员",
+    "role": "admin",
+    "status": "active",
+    "createdAt": "2026-10-05T08:00:00Z"
+  },
+  "posts": [
+    {
+      "_id": "post-1",
+      "title": "让个人网站回归内容本身",
+      "content": "# 安静的数字空间\n\n文字应该是主角，设计应该让阅读更轻松。\n\n```js\nconsole.log(42);\n```",
+      "summary": "文字与想法，在这里慢慢生长。",
+      "author": {
+        "_id": "admin-1",
+        "username": "admin",
+        "name": "测试管理员",
+        "role": "admin",
+        "status": "active",
+        "createdAt": "2026-10-05T08:00:00Z"
+      },
+      "createdAt": "2026-10-05T08:00:00Z",
+      "updatedAt": "2026-10-05T08:00:00Z",
+      "views": 24,
+      "tags": [
+        "设计",
+        "思考"
+      ],
+      "thumbnail": "",
+      "isPublished": true
+    },
+    {
+      "_id": "post-2",
+      "title": "一个周末，搭建自己的数字花园：关于长期记录与持续创造的实践笔记",
+      "content": "记录开发中遇见的问题，也记录那些值得留下来的小小发现。",
+      "summary": "保持好奇，慢慢生长。",
+      "author": {
+        "_id": "admin-1",
+        "username": "admin",
+        "name": "测试管理员",
+        "role": "admin",
+        "status": "active",
+        "createdAt": "2026-10-05T08:00:00Z"
+      },
+      "createdAt": "2026-09-28T08:00:00Z",
+      "views": 12,
+      "tags": [
+        "开发"
+      ],
+      "thumbnail": "",
+      "isPublished": true
+    }
+  ]
+}

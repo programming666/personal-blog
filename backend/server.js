@@ -128,13 +128,9 @@ if (process.env.SERVE_FRONTEND === 'true') {
     const meta = { title: '个人博客', favicon: null, logo: null, description: '个人技术博客,记录学习与生活' };
     try {
       const Setting = require('./models/Setting');
-      const docs = await Setting.find({ key: { $in: ['site.title', 'site.favicon', 'site.logo', 'site.description'] } });
-      docs.forEach((d) => {
-        if (d.key === 'site.title' && d.value) meta.title = String(d.value);
-        if (d.key === 'site.favicon' && d.value) meta.favicon = String(d.value);
-        if (d.key === 'site.logo' && d.value) meta.logo = String(d.value);
-        if (d.key === 'site.description' && d.value) meta.description = String(d.value);
-      });
+      const { siteMetadata } = require('./services/siteMetadata');
+      const docs = await Setting.find({ key: { $in: ['site.title', 'site.favicon', 'site.logo', 'site.description', 'site.presentation'] } });
+      Object.assign(meta, await siteMetadata(docs));
       siteMetaCache = meta;
       siteMetaCacheAt = Date.now();
     } catch (e) {
@@ -217,10 +213,10 @@ if (process.env.SERVE_FRONTEND === 'true') {
     let html = template
       .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(og.title)}</title>`)
       .replace('</head>', `    ${metaLines}\n  </head>`);
-    // favicon:有自定义则替换 vite.svg
+    // 有自定义图标时替换默认图标。
     if (siteMeta.favicon) {
       const faviconUrl = siteMeta.favicon.startsWith('http') ? siteMeta.favicon : `/${siteMeta.favicon.replace(/^\/+/, '')}`;
-      html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${faviconUrl}" type="image/png" />`);
+      html = html.replace(/<link rel="icon"[^>]*>/, `<link rel="icon" href="${escapeHtml(faviconUrl)}" type="image/png" />`);
     }
     return html;
   }

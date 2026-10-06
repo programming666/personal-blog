@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { useSettings } from './context/SettingsContext';
 import { getLang } from './i18n';
 import SiteFooter from './components/SiteFooter';
+import ScrollToTop from './components/ScrollToTop';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -35,6 +36,7 @@ function App() {
   const Content = studio ? 'div' : 'main';
   return (
     <div className={`min-h-screen flex flex-col ${studio ? 'studio-app' : 'journal-app'}`}>
+      <ScrollToTop />
       <a className="skip-link" href="#main-content">{english ? 'Skip to content' : '跳至正文'}</a>
       {!studio && <Navbar />}
       {error && <div className="settings-notice" role="status">{english ? 'Site settings are temporarily unavailable. Using existing settings.' : error}<button onClick={() => void refresh()}>{english ? 'Retry' : '重试'}</button></div>}

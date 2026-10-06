@@ -1,12 +1,12 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { postsAPI, adminAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MarkdownEditorNew from '../components/MarkdownEditorNew';
 import TurnstileWidget from '../components/TurnstileWidget';
 import { FaArrowLeft, FaSave, FaEye, FaTrash, FaImage } from 'react-icons/fa';
-import '../styles/edit-post.css';
+import StudioLayout from '../components/StudioLayout';
 
 const EditPost = () => {
   const { id } = useParams();
@@ -212,48 +212,37 @@ const EditPost = () => {
   };
 
   // 加载状态
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-        <div className="loading-spinner" style={{ width: '40px', height: '40px' }}></div>
-      </div>
-    );
+  if (loading || authLoading || !isAuthenticated || user?.role !== 'admin') {
+    return <StudioLayout title="编辑文章"><div className="studio-loading" role="status"><span className="loading-spinner" aria-hidden="true" /> 正在打开文章…</div></StudioLayout>;
   }
 
-  // 错误状态
-  if (error) {
+  // 加载失败时提供重试；保存失败仍保留编辑表单。
+  if (error && !originalPost) {
     return (
-      <div className="edit-post-container">
-        <div className="error-message">{error}</div>
-        <Link
-          to={originalPost ? `/posts/${originalPost._id}` : '/'}
-          className="btn btn-primary"
-        >
-          <FaArrowLeft style={{ marginRight: '8px' }} />
-          {originalPost ? '返回文章' : '返回首页'}
-        </Link>
-      </div>
+      <StudioLayout title="编辑文章" activeTab="posts">
+        <div className="studio-notice is-error" role="alert"><span>{error}</span><button type="button" className="btn btn-secondary" onClick={fetchPost}>重新加载</button></div>
+        <Link to="/admin?tab=posts" className="btn btn-secondary"><FaArrowLeft aria-hidden="true" /> 返回文章管理</Link>
+      </StudioLayout>
     );
   }
 
   return (
+    <StudioLayout title={previewMode ? '预览文章' : '编辑文章'} subtitle="让每一次修改，都更接近你想表达的样子。" activeTab="posts">
     <div className="edit-post-container">
-      {/* 返回按钮 */}
       <div className="edit-post-header">
-        <Link
-          to={previewMode ? `/edit/${id}` : `/posts/${id}`}
-          className="back-link"
-        >
-          <FaArrowLeft style={{ marginRight: '8px' }} /> 
-          {previewMode ? '返回编辑' : '返回文章'}
-        </Link>
+        {previewMode ? (
+          <button type="button" className="back-link" onClick={() => setPreviewMode(false)}><FaArrowLeft aria-hidden="true" /> 返回编辑</button>
+        ) : (
+          <Link to="/admin?tab=posts" className="back-link"><FaArrowLeft aria-hidden="true" /> 返回文章管理</Link>
+        )}
       </div>
 
       <div className="edit-post-card">
         <div className="edit-post-header-inner">
-          <h1 className="edit-post-title">
-            {previewMode ? '预览文章' : '编辑文章'}
-          </h1>
+          <h2 className="edit-post-title">
+            {previewMode ? '阅读预览' : '文章内容'}
+          </h2>
+          <Link to={`/posts/${id}`} className="back-link">查看文章 ↗</Link>
         </div>
 
         {previewMode ? (
@@ -354,6 +343,7 @@ const EditPost = () => {
                     <button
                       type="button"
                       className="remove-image-btn"
+                      aria-label="移除缩略图"
                       onClick={() => {
                         setImagePreview('');
                         setFormData(prev => ({ ...prev, thumbnail: '' }));
@@ -364,7 +354,7 @@ const EditPost = () => {
                   </div>
                 ) : (
                   <div>
-                    <label htmlFor="thumbnail" style={{ cursor: 'pointer', color: '#007bff' }}>
+                    <label htmlFor="thumbnail" className="editor-upload-label">
                       上传图片
                     </label>
                     <input
@@ -375,7 +365,7 @@ const EditPost = () => {
                       onChange={handleImageChange}
                       style={{ display: 'none' }}
                     />
-                    <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+                    <p className="editor-help">
                       PNG, JPG, GIF 最大 10MB
                     </p>
                   </div>
@@ -420,7 +410,7 @@ const EditPost = () => {
                   />
                 </label>
               </div>
-              <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+              <p className="editor-help">
                 可上传多张(JPG/PNG/WebP,单张 ≤5MB),用于文章正文里配图;最多 10 张。
               </p>
             </div>
@@ -487,11 +477,7 @@ const EditPost = () => {
               <button
                 type="button"
                 className="btn btn-danger"
-                onClick={() => {
-                  if (window.confirm('确定要删除这篇文章吗？此操作不可恢复。')) {
-                    handleDelete();
-                  }
-                }}
+                onClick={handleDelete}
                 disabled={deleting}
               >
                 {deleting ? (
@@ -547,6 +533,7 @@ const EditPost = () => {
         )}
       </div>
     </div>
+    </StudioLayout>
   );
 };
 

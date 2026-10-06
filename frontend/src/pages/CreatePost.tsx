@@ -1,12 +1,12 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { postsAPI, adminAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MarkdownEditorNew from '../components/MarkdownEditorNew';
 import TurnstileWidget from '../components/TurnstileWidget';
-import { FaArrowLeft, FaSave, FaEye, FaTags, FaImage, FaTrash } from 'react-icons/fa';
-import '../styles/edit-post.css';
+import { FaArrowLeft, FaSave, FaEye, FaImage, FaTrash } from 'react-icons/fa';
+import StudioLayout from '../components/StudioLayout';
 
 const CreatePost = () => {
   const { isAuthenticated, user, loading: authLoading } = useAuth();
@@ -143,32 +143,27 @@ const CreatePost = () => {
   };
 
   // 如果仍在加载认证状态
-  if (authLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-        <div className="loading-spinner" style={{ width: '40px', height: '40px' }}></div>
-      </div>
-    );
+  if (authLoading || !isAuthenticated || user?.role !== 'admin') {
+    return <StudioLayout title="撰写文章"><div className="studio-loading" role="status"><span className="loading-spinner" aria-hidden="true" /> 正在验证管理权限…</div></StudioLayout>;
   }
 
   return (
+    <StudioLayout title={previewMode ? '预览文章' : '撰写文章'} subtitle="给灵感一个落点。写下想法，再慢慢打磨。" activeTab="posts">
     <div className="edit-post-container">
-      {/* 返回按钮 */}
       <div className="edit-post-header">
-        <Link
-          to={previewMode ? '/create' : '/'}
-          className="back-link"
-        >
-          <FaArrowLeft style={{ marginRight: '8px' }} />
-          {previewMode ? '返回编辑' : '返回首页'}
-        </Link>
+        {previewMode ? (
+          <button type="button" className="back-link" onClick={() => setPreviewMode(false)}><FaArrowLeft aria-hidden="true" /> 返回编辑</button>
+        ) : (
+          <Link to="/admin?tab=posts" className="back-link"><FaArrowLeft aria-hidden="true" /> 返回文章管理</Link>
+        )}
       </div>
 
       <div className="edit-post-card">
         <div className="edit-post-header-inner">
-          <h1 className="edit-post-title">
-            {previewMode ? '预览文章' : '创建新文章'}
-          </h1>
+          <h2 className="edit-post-title">
+            {previewMode ? '阅读预览' : '文章内容'}
+          </h2>
+          <span className="editor-help">Markdown 编辑器</span>
         </div>
 
         {previewMode ? (
@@ -269,6 +264,7 @@ const CreatePost = () => {
                     <button
                       type="button"
                       className="remove-image-btn"
+                      aria-label="移除缩略图"
                       onClick={() => {
                         setImagePreview('');
                         setFormData(prev => ({ ...prev, thumbnail: '' }));
@@ -279,7 +275,7 @@ const CreatePost = () => {
                   </div>
                 ) : (
                   <div>
-                    <label htmlFor="thumbnail" style={{ cursor: 'pointer', color: '#007bff' }}>
+                    <label htmlFor="thumbnail" className="editor-upload-label">
                       上传图片
                     </label>
                     <input
@@ -290,7 +286,7 @@ const CreatePost = () => {
                       onChange={handleImageChange}
                       style={{ display: 'none' }}
                     />
-                    <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+                    <p className="editor-help">
                       PNG, JPG, GIF 最大 10MB
                     </p>
                   </div>
@@ -335,7 +331,7 @@ const CreatePost = () => {
                   />
                 </label>
               </div>
-              <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+              <p className="editor-help">
                 可上传多张(JPG/PNG/WebP,单张 ≤5MB),用于文章正文里配图;最多 10 张。
               </p>
             </div>
@@ -444,6 +440,7 @@ const CreatePost = () => {
         )}
       </div>
     </div>
+    </StudioLayout>
   );
 };
 

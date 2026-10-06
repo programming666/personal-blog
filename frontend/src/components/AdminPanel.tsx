@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { adminAPI, authAPI } from '../services/api';
 import api from '../services/api';
 import {
@@ -10,22 +10,15 @@ import {
   FaTrash,
   FaBan,
   FaCheck,
-  FaChartBar,
-  FaSignOutAlt,
   FaUser,
-  FaBullhorn,
-  FaShieldAlt,
-  FaCog,
-  FaPlus,
   FaEdit,
-  FaRobot,
-  FaLanguage,
-  FaKey,
-  FaLink
+  FaArrowRight
 } from 'react-icons/fa';
 import AdminAnnouncements from './AdminAnnouncements';
 import AdminSecurity from './AdminSecurity';
-import AdminSiteSettings from './AdminSiteSettings';
+import AdminAppearance from './AdminAppearance';
+import StudioLayout, { StudioWriteAction } from './StudioLayout';
+import { studioGroups } from '../utils/studioNavigation';
 import AdminModerationQueue from './AdminModerationQueue';
 import AdminProfile from './AdminProfile';
 import AdminAiSettings from './AdminAiSettings';
@@ -33,41 +26,30 @@ import AdminTranslationQueue from './AdminTranslationQueue';
 import AdminFriendLinks from './AdminFriendLinks';
 import AdminOAuthProviders from './AdminOAuthProviders';
 
-const tabs = [
-  { id: 'stats', name: '统计概览', icon: FaChartBar },
-  { id: 'users', name: '用户管理', icon: FaUsers },
-  { id: 'posts', name: '文章管理', icon: FaFileAlt },
-  { id: 'comments', name: '评论管理', icon: FaComments },
-  { id: 'moderation', name: '审核队列', icon: FaShieldAlt },
-  { id: 'announcements', name: '公告管理', icon: FaBullhorn },
-  { id: 'settings', name: '站点设置', icon: FaCog },
-  { id: 'oauth', name: '登录方式', icon: FaKey },
-  { id: 'profile', name: '个人资料', icon: FaUser },
-  { id: 'security', name: '安全', icon: FaShieldAlt },
-  { id: 'aimodel', name: 'AI 审核', icon: FaRobot },
-  { id: 'translate', name: '翻译队列', icon: FaLanguage },
-  { id: 'friendlinks', name: '友链管理', icon: FaLink }
-];
+const tabs = studioGroups.flatMap(group => group.items);
+const dataTabs = ['stats', 'users', 'posts', 'comments'];
 
 const StatCard = ({ icon: Icon, label, value }) => (
-  <div className="card p-6 flex items-center gap-4">
-    <div className="w-12 h-12 rounded-xl border border-neutral-200 dark:border-neutral-800 grid place-items-center text-neutral-900 dark:text-white">
-      <Icon className="text-lg" />
-    </div>
-    <div>
-      <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">{label}</div>
-      <div className="text-2xl font-bold text-neutral-900 dark:text-white">{value ?? 0}</div>
-    </div>
+  <div className="studio-stat">
+    <dt className="studio-stat-heading"><span>{label}</span><Icon aria-hidden="true" /></dt>
+    <dd>{typeof value === 'number' ? value.toLocaleString('zh-CN') : '—'}</dd>
+    <p className="studio-stat-note">当前站点累计</p>
   </div>
 );
 
 const AdminPanel = () => {
-  const [activeTab, setActiveTab] = useState('stats');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = tabs.some(tab => tab.id === searchParams.get('tab')) ? searchParams.get('tab') : 'stats';
+  const currentTab = tabs.find(tab => tab.id === activeTab);
+  const setActiveTab = (id) => setSearchParams({ tab: id });
   const [stats, setStats] = useState({});
   const [users, setUsers] = useState([]);
   const [posts, setPosts] = useState([]);
   const [comments, setComments] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   const handleLogout = async () => {
     try {
@@ -82,30 +64,35 @@ const AdminPanel = () => {
   };
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
+      setLoadError('');
+      setActionError('');
+      if (!dataTabs.includes(activeTab)) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
-        if (activeTab === 'stats') {
-          const r = await adminAPI.getStats();
-          if (r.data.success) setStats(r.data.data);
-        } else if (activeTab === 'users') {
-          const r = await adminAPI.getUsers();
-          if (r.data.success) setUsers(r.data.data);
-        } else if (activeTab === 'posts') {
-          const r = await adminAPI.getPosts();
-          if (r.data.success) setPosts(r.data.data);
-        } else if (activeTab === 'comments') {
-          const r = await adminAPI.getComments();
-          if (r.data.success) setComments(r.data.data);
-        }
+        const loaders = {
+          stats: [adminAPI.getStats, setStats],
+          users: [adminAPI.getUsers, setUsers],
+          posts: [adminAPI.getPosts, setPosts],
+          comments: [adminAPI.getComments, setComments],
+        };
+        const [fetch, update] = loaders[activeTab];
+        const response = await fetch();
+        if (!response.data.success) throw new Error(response.data.message || '加载失败');
+        if (!cancelled) update(response.data.data);
       } catch (err) {
-        console.error(err);
+        if (!cancelled) setLoadError(err.response?.data?.message || err.message || '加载失败，请重试');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     load();
-  }, [activeTab]);
+    return () => { cancelled = true; };
+  }, [activeTab, reloadKey]);
 
   const refetchUsers = async () => {
     const r = await adminAPI.getUsers();
@@ -115,9 +102,9 @@ const AdminPanel = () => {
   const handleUpdateUserStatus = async (userId, status) => {
     try {
       await adminAPI.updateUserStatus(userId, status);
-      refetchUsers();
+      await refetchUsers();
     } catch {
-      alert('操作失败');
+      setActionError('操作失败，请重试');
     }
   };
 
@@ -125,9 +112,9 @@ const AdminPanel = () => {
     if (!window.confirm('确定要删除这个用户吗？将删除其所有文章和评论。')) return;
     try {
       await adminAPI.deleteUser(userId);
-      refetchUsers();
+      await refetchUsers();
     } catch {
-      alert('删除失败');
+      setActionError('删除失败，请重试');
     }
   };
 
@@ -138,7 +125,7 @@ const AdminPanel = () => {
       const r = await adminAPI.getPosts();
       if (r.data.success) setPosts(r.data.data);
     } catch {
-      alert('删除失败');
+      setActionError('删除失败，请重试');
     }
   };
 
@@ -149,16 +136,32 @@ const AdminPanel = () => {
       const r = await adminAPI.getComments();
       if (r.data.success) setComments(r.data.data);
     } catch {
-      alert('删除失败');
+      setActionError('删除失败，请重试');
     }
   };
 
   const renderStats = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-      <StatCard icon={FaUsers} label="用户总数" value={stats.totalUsers} />
-      <StatCard icon={FaFileAlt} label="文章总数" value={stats.totalPosts} />
-      <StatCard icon={FaComments} label="评论总数" value={stats.totalComments} />
-    </div>
+    <>
+      <dl className="studio-stat-grid" aria-label="站点累计统计">
+        <StatCard icon={FaUsers} label="用户总数" value={stats.totalUsers} />
+        <StatCard icon={FaFileAlt} label="文章总数" value={stats.totalPosts} />
+        <StatCard icon={FaComments} label="评论总数" value={stats.totalComments} />
+      </dl>
+      <div className="studio-overview-grid">
+        <section className="card studio-intro">
+          <p className="studio-eyebrow">A PLACE TO CREATE</p>
+          <h2>为下一个想法，留一页空白。</h2>
+          <p>在这里整理文章、回应读者，也照顾这个小小的数字花园。无需匆忙，好的内容值得慢慢打磨。</p>
+          <StudioWriteAction />
+        </section>
+        <section className="card studio-quick-links">
+          <h2>常用入口</h2>
+          <button type="button" data-studio-nav onClick={() => setActiveTab('moderation')}><span>查看待审核内容</span><FaArrowRight aria-hidden="true" /></button>
+          <button type="button" data-studio-nav onClick={() => setActiveTab('settings')}><span>调整站点外观与内容</span><FaArrowRight aria-hidden="true" /></button>
+          <button type="button" data-studio-nav onClick={() => setActiveTab('announcements')}><span>管理站点公告</span><FaArrowRight aria-hidden="true" /></button>
+        </section>
+      </div>
+    </>
   );
 
   const renderUsers = () => (
@@ -230,16 +233,11 @@ const AdminPanel = () => {
     <div className="card overflow-hidden">
       <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-3">
         <h3 className="font-semibold text-neutral-900 dark:text-white">文章列表</h3>
-        <Link
-          to="/create"
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-900 bg-neutral-900 text-white hover:bg-neutral-700 dark:border-white dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200 transition-colors"
-        >
-          <FaPlus /> 新建文章
-        </Link>
+        <span className="text-xs text-neutral-500">共 {posts.length} 篇文章</span>
       </div>
       <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
         {posts.map((p) => (
-          <div key={p._id} className="px-6 py-4 flex items-center justify-between gap-4">
+          <div key={p._id} className="studio-record-row px-6 py-4 flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
               <h4 className="font-medium text-neutral-900 dark:text-white truncate">{p.title}</h4>
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 flex gap-3 flex-wrap">
@@ -277,7 +275,7 @@ const AdminPanel = () => {
       </div>
       <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
         {comments.map((c) => (
-          <div key={c._id} className="px-6 py-4 flex items-start justify-between gap-4">
+          <div key={c._id} className="studio-record-row px-6 py-4 flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <p className="text-neutral-800 dark:text-neutral-200 line-clamp-2">{c.content}</p>
               <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400 flex gap-3 flex-wrap">
@@ -304,72 +302,30 @@ const AdminPanel = () => {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-black">
-      <header className="bg-white/80 dark:bg-black/70 backdrop-blur border-b border-neutral-200 dark:border-neutral-800 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-neutral-900 dark:bg-white grid place-items-center">
-              <FaChartBar className="text-white dark:text-neutral-900" />
-            </div>
-            <div>
-              <h1 className="text-base font-semibold text-neutral-900 dark:text-white leading-tight">后台管理</h1>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Personal Blog Admin</p>
-            </div>
-          </div>
-          <button onClick={handleLogout} className="btn btn-danger">
-            <FaSignOutAlt /> 退出
-          </button>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex gap-1 overflow-x-auto -mb-px">
-            {tabs.map((t) => {
-              const Icon = t.icon;
-              const active = activeTab === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id)}
-                  className={`whitespace-nowrap inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    active
-                      ? 'border-neutral-900 text-neutral-900 dark:border-white dark:text-white'
-                      : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white'
-                  }`}
-                >
-                  <Icon className="text-sm" /> {t.name}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {loading && activeTab !== 'announcements' && activeTab !== 'settings' && activeTab !== 'security' && activeTab !== 'moderation' && activeTab !== 'profile' && activeTab !== 'aimodel' && activeTab !== 'translate' && activeTab !== 'friendlinks' && activeTab !== 'oauth' ? (
-          <div className="space-y-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-20 rounded-2xl bg-neutral-100 dark:bg-neutral-800/60 animate-pulse"></div>
-            ))}
-          </div>
-        ) : (
-          <>
-            {activeTab === 'stats' && renderStats()}
-            {activeTab === 'users' && renderUsers()}
-            {activeTab === 'posts' && renderPosts()}
-            {activeTab === 'comments' && renderComments()}
-            {activeTab === 'moderation' && <AdminModerationQueue />}
-            {activeTab === 'announcements' && <AdminAnnouncements />}
-            {activeTab === 'settings' && <AdminSiteSettings />}
-            {activeTab === 'profile' && <AdminProfile />}
-            {activeTab === 'security' && <AdminSecurity />}
-            {activeTab === 'aimodel' && <AdminAiSettings />}
-            {activeTab === 'translate' && <AdminTranslationQueue />}
-            {activeTab === 'friendlinks' && <AdminFriendLinks />}
-            {activeTab === 'oauth' && <AdminOAuthProviders />}
-          </>
-        )}
-      </main>
-    </div>
+    <StudioLayout title={currentTab.name} subtitle={currentTab.description} activeTab={activeTab} onSelectTab={setActiveTab} onLogout={handleLogout} actions={activeTab === 'stats' || activeTab === 'posts' ? <StudioWriteAction /> : undefined}>
+      {actionError && <div className="studio-notice is-error" role="alert"><span>{actionError}</span><button type="button" className="btn btn-secondary" onClick={() => setActionError('')}>关闭</button></div>}
+      {dataTabs.includes(activeTab) && loading ? (
+        <div className="card studio-loading" role="status"><span className="loading-spinner" aria-hidden="true" /> 正在整理工作区…</div>
+      ) : dataTabs.includes(activeTab) && loadError ? (
+        <div className="studio-notice is-error" role="alert"><span>{loadError}</span><button type="button" className="btn btn-secondary" onClick={() => setReloadKey(key => key + 1)}>重新加载</button></div>
+      ) : (
+        <>
+          {activeTab === 'stats' && renderStats()}
+          {activeTab === 'users' && renderUsers()}
+          {activeTab === 'posts' && renderPosts()}
+          {activeTab === 'comments' && renderComments()}
+          {activeTab === 'moderation' && <AdminModerationQueue />}
+          {activeTab === 'announcements' && <AdminAnnouncements />}
+          {activeTab === 'settings' && <AdminAppearance />}
+          {activeTab === 'profile' && <AdminProfile />}
+          {activeTab === 'security' && <AdminSecurity />}
+          {activeTab === 'aimodel' && <AdminAiSettings />}
+          {activeTab === 'translate' && <AdminTranslationQueue />}
+          {activeTab === 'friendlinks' && <AdminFriendLinks />}
+          {activeTab === 'oauth' && <AdminOAuthProviders />}
+        </>
+      )}
+    </StudioLayout>
   );
 };
 

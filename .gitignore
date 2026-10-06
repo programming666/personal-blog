@@ -142,6 +142,7 @@ CLAUDE.md
 .claude/
 .vscode/.playwright-mcp/
 .playwright-mcp/
+.superpowers/
 
 # temp deploy/verify helpers (contain server credentials)
 ssh.py

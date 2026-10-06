@@ -1,5 +1,8 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { useSettings } from './context/SettingsContext';
+import { getLang } from './i18n';
+import SiteFooter from './components/SiteFooter';
 import Navbar from './components/Navbar';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
@@ -25,10 +28,17 @@ const Fallback = () => (
 );
 
 function App() {
+  const { pathname } = useLocation();
+  const studio = pathname === '/admin' || pathname === '/create' || pathname.startsWith('/edit/');
+  const { error, refresh } = useSettings();
+  const english = getLang() === 'en';
+  const Content = studio ? 'div' : 'main';
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-1 w-full">
+    <div className={`min-h-screen flex flex-col ${studio ? 'studio-app' : 'journal-app'}`}>
+      <a className="skip-link" href="#main-content">{english ? 'Skip to content' : '跳至正文'}</a>
+      {!studio && <Navbar />}
+      {error && <div className="settings-notice" role="status">{english ? 'Site settings are temporarily unavailable. Using existing settings.' : error}<button onClick={() => void refresh()}>{english ? 'Retry' : '重试'}</button></div>}
+      <Content id="main-content" className="flex-1 w-full" tabIndex={-1}>
         <Suspense fallback={<Fallback />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -45,7 +55,8 @@ function App() {
             <Route path="/friends" element={<FriendsPage />} />
           </Routes>
         </Suspense>
-      </main>
+      </Content>
+      {!studio && <SiteFooter />}
     </div>
   );
 }

@@ -365,6 +365,10 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/blog.example.com/privkey.pem;
 
     # 安全头
+    # 注意:站点若在 Cloudflare 后面,Cloudflare 会用自己的 HSTS 设置覆盖下面这条 ——
+    # 这里配了也没用,必须去 CF 面板开(SSL/TLS → Edge Certificates → HSTS),见 9.1 节。
+    # 另外 nosniff / Referrer-Policy / Permissions-Policy 已由 Express(server.js)统一下发,
+    # 走 Cloudflare Tunnel 的部署根本不会经过这份 Nginx 配置,别再依赖这里的 add_header。
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
@@ -460,6 +464,113 @@ curl -i -X POST https://blog.example.com/api/admin/login \
 ```
 
 如果 OAuth 跳转回来报 `redirect_uri_mismatch`,核对 GitHub OAuth App 里的 callback URL 和 backend `.env` 的 `GITHUB_CALLBACK_URL` 是否**完全一致**(连尾斜杠都得对齐)。
+
+### 9.1 上线后的安全自检(响应头 / TLS / DNS)
+
+下面 4 项都在站点或域名层面,改代码改不动,必须逐条人工确认。
+实测 `blog.xh.do` 时第 2、3、4 项都是**不合格**的,写在这里避免下次再漏。
+
+```bash
+HOST=blog.example.com
+
+# 1) 响应头基线 — nosniff / Referrer-Policy / Permissions-Policy 由 Express 下发(见 server.js)
+curl -sSI https://$HOST/ | grep -iE 'strict-transport|x-content-type|referrer-policy|permissions-policy|x-frame-options'
+
+# 2) HSTS 必须是 12 个月,不能是 max-age=0  ← 曾经线上就是 0
+curl -sSI https://$HOST/ | grep -i strict-transport
+
+# 3) 最低 TLS 版本必须是 1.2  ← 曾经线上还能协商出 TLSv1.1
+echo | openssl s_client -connect $HOST:443 -tls1_1 2>&1 | grep -E 'Protocol|alert'
+
+# 4) 证书覆盖范围
+echo | openssl s_client -connect $HOST:443 -servername $HOST 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+```
+
+```bash
+# 5) 源站端口有没有被公网直接访问 —— 有就等于绕过了整个 Cloudflare(WAF / 机器人防护 / 边缘限速)
+ORIGIN=$(curl -sS https://api.ipify.org)   # 换成源站真实 IP
+for p in 8090 8089; do
+  timeout 5 bash -c "(echo > /dev/tcp/$ORIGIN/$p)" 2>/dev/null \
+    && echo "$p 开放 ← 必须处理" || echo "$p 已关闭"
+done
+```
+
+两个端口各有各的治法:
+
+- **8090(Express 明文 HTTP)**:应用自己就能关 —— `backend/.env` 里设 `HOST=127.0.0.1`。
+  前面的 TLS 终结器(stunnel / nginx / Caddy)本来就从本机连,不受影响。
+  这是最该先修的一条:明文 HTTP 直接打 `/api/*`,连 TLS 都省了,而且浏览器会把它
+  当成同源之外的一个"普通 http 站点"来对待。
+- **8089(stunnel / nginx 的 TLS 监听)**:不能关,Cloudflare 要连它。只能限制来源 ——
+  放 Cloudflare 官方 IP 段,其余 DROP。生产机实测两个端口当时都是开放的。
+
+#### 为什么线上 HSTS 是 `max-age=0`
+
+Cloudflare **只认它自己面板里的 HSTS 设置,会覆盖源站下发的同名头**。面板里 HSTS 默认是
+`Enabled + Max-Age 0`,而 `max-age=0` 不等于"没有 HSTS" —— 它是**撤回信号**:
+浏览器收到会立刻删掉本地缓存的 HSTS 策略。于是站点看起来"配了 HSTS",实际的降级攻击 /
+SSL 剥离防护是零。(第 7 节的 Nginx 模板里那条 `add_header ... HSTS` 在 Cloudflare 后面
+根本不会生效,这也是原因。)
+
+修复:`dash.cloudflare.com` → **SSL/TLS → Edge Certificates → HTTP Strict Transport Security (HSTS)**
+→ Enable → **Max Age Header = 12 months** → Save。
+
+> ⚠️ **先不要勾 Include subdomains**。Cloudflare 这个开关作用于**整个 zone 的所有主机名**,
+> 而 `xh.do` 下的 `mail.xh.do` 是 DNS-only(443 上没有 Web 服务)。勾上之后,任何浏览器只要
+> 访问过一次 `http://mail.xh.do` 就会被迫升级到 HTTPS 而彻底打不开。等确认所有子域都有
+> 可用的 HTTPS 再开。
+>
+> 同理**不要**在 Nginx / Express 里再下发一份 HSTS —— Cloudflare 会覆盖它,两份并存时
+> 究竟哪个值生效不可控。
+
+#### 最低 TLS 版本
+
+Cloudflare → SSL/TLS → Edge Certificates → **Minimum TLS Version = 1.2**。
+TLS 1.0 / 1.1 已被 RFC 8996 弃用,而且 1.1 上只能协商 CBC 套件
+(`ECDHE-ECDSA-AES128-SHA`),没有任何现代 AEAD 保护。
+
+#### CAA 记录
+
+`xh.do` 当前没有 CAA,等于**任何一个 CA** 都能给它签证书(伪造证书的门槛因此变低)。
+只用 Let's Encrypt 的话加一条即可:
+
+```
+xh.do.  IN CAA 0 issue "letsencrypt.org"
+```
+
+#### `Access-Control-Allow-Credentials` 的长期误报
+
+`server.js` 里已经处理:没命中 CORS 白名单时 `cors` 包仍会无条件写
+`Access-Control-Allow-Credentials: true`(哪怕一个 ACAO 都没发)。这个头在没有 ACAO 时
+对浏览器完全无效,只会让 Mozilla Observatory 这类扫描器长期报一条假阳性,所以中间件在
+下发前会把它摘掉。看到"credentials 为 true"时先确认同时有没有 ACAO。
+
+#### CSP:nonce 模式依赖一个前提
+
+`backend/server.js` 在 `SERVE_FRONTEND=true` 时会给 `index.html` 里每个 `<script>` 注入
+per-request nonce,`script-src` 随之变成 `'self' 'nonce-…' 'strict-dynamic' …`。
+现代浏览器见到 nonce 会**忽略 `'unsafe-inline'` 和 host 白名单**,内联脚本不再放行 ——
+这才让 CSP 对 XSS 真正起作用(为什么要紧:登录令牌存在 `localStorage`,一次 XSS 就是
+完整账号接管)。
+
+反过来,如果前端改由 Nginx 直接 serve(`SERVE_FRONTEND` 不填或 `false`),后端就**必须**
+退回 `'unsafe-inline'` 写法 —— 否则页面上没有任何 nonce 能对上,浏览器会拦掉全部脚本、整站白屏。
+这个判断是 `server.js` 里按 `SERVE_FRONTEND` 自动做的,所以切换部署形态后请核对一次启动日志:
+
+```bash
+pm2 logs blog-backend --lines 30 | grep '\[csp\]'
+# [csp] nonce + strict-dynamic 已启用(Express 亲自返回 index.html)      ← SERVE_FRONTEND=true
+# [csp] 未启用 nonce(前端不由 Express serve),script-src 仍依赖 unsafe-inline …
+```
+
+Cloudflare 侧不需要为 nonce 做额外配置:它会解析本响应头里的 nonce 并给自己注入的脚本
+(JS Detections / challenge-platform precursor)加上同一个 nonce,Turnstile 官方也推荐
+`nonce + 'strict-dynamic'`。
+
+浏览器控制台里若出现 `Refused to execute inline script`,先分清来源:Cloudflare 的
+Page Shield(Client-side security)会另外注入一条 `Content-Security-Policy-Report-Only`
+头用来采集页面上跑着哪些脚本,那些 "violation" 是它自己的探针报告,不是我们的策略在拦。
 
 ---
 
@@ -641,6 +752,8 @@ blog.example.com {
     file_server
 
     # 安全头
+    # 同 Nginx 一节:在 Cloudflare 后面时 HSTS 由 CF 面板决定,这里配了会被覆盖(见 9.1 节)。
+    # nosniff / Referrer-Policy / Permissions-Policy 已由 Express 下发,不必在这里重复。
     header {
         Strict-Transport-Security "max-age=63072000; includeSubDomains"
         X-Content-Type-Options "nosniff"

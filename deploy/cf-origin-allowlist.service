@@ -1,0 +1,11 @@
+[Unit]
+Description=源站端口只允许 Cloudflare 回源访问
+Documentation=https://developers.cloudflare.com/fundamentals/concepts/cloudflare-ip-addresses/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cf-origin-allowlist.sh
+# 脚本自己会判断缓存是否过期(24h),没过期就只重放规则,不会每次都打接口
+RemainAfterExit=yes

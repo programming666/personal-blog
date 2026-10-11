@@ -1,0 +1,14 @@
+[Unit]
+Description=定期重放 Cloudflare 回源白名单规则(网段每天刷新一次)
+Documentation=https://developers.cloudflare.com/fundamentals/concepts/cloudflare-ip-addresses/
+
+[Timer]
+# 开机 30 秒后就位 —— 这一步保证规则在重启后一定会被重新挂上
+OnBootSec=30s
+# 之后每 10 分钟重放一次。重放是幂等的、几乎不耗资源,作用是自愈:
+# 万一同机上别的组件(mailcow 的 netfilter 容器、docker)动了 INPUT 链,
+# 最多 10 分钟规则就回来了。网段本身仍然只每 24 小时拉一次。
+OnUnitActiveSec=10min
+
+[Install]
+WantedBy=timers.target

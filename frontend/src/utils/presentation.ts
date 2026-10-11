@@ -19,12 +19,12 @@ const text = (zh: string, en: string): Localized => ({ zh, en });
 export function defaultPresentation(): Presentation {
   return {
     version: 1,
-    brand: { name: text('秦一宁', 'Qinyining'), description: text('关于技术、创造，以及值得记住的小事。', 'On technology, making things, and moments worth keeping.') },
+    brand: { name: text('', ''), description: text('关于技术、创造，以及值得记住的小事。', 'On technology, making things, and moments worth keeping.') },
     home: {
       eyebrow: text('保持好奇，慢慢生长', 'NOTES ON BUILDING & LIVING'),
       title: text('在代码之间，记录生活的回声。', 'Between code and everyday life.'),
       subtitle: text('把探索写成文字，让想法在这里生长。', 'A journal of experiments, ideas, and everyday discoveries.'),
-      authorName: '秦一宁', authorBio: text('一个持续学习、记录与创造的人。', 'Always learning, writing, and building.'), showAuthor: true,
+      authorName: '', authorBio: text('一个持续学习、记录与创造的人。', 'Always learning, writing, and building.'), showAuthor: true,
     },
     theme: { accent: '#3c6857', paper: 'warm', headingFont: 'serif', mode: 'system' },
     posts: { layout: 'list', showCover: true, pageSize: 9 },

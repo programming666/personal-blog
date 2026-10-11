@@ -130,7 +130,9 @@ if (process.env.SERVE_FRONTEND === 'true') {
       const Setting = require('./models/Setting');
       const { siteMetadata } = require('./services/siteMetadata');
       const docs = await Setting.find({ key: { $in: ['site.title', 'site.favicon', 'site.logo', 'site.description', 'site.presentation'] } });
-      Object.assign(meta, await siteMetadata(docs));
+      // 站点名称为空(未配置)时保留上面的静态默认值,避免注入空的 <title> / og:site_name
+      const resolved = await siteMetadata(docs);
+      for (const [key, value] of Object.entries(resolved)) if (value) meta[key] = value;
       siteMetaCache = meta;
       siteMetaCacheAt = Date.now();
     } catch (e) {

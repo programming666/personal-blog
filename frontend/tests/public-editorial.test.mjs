@@ -18,9 +18,9 @@ const presentation = {
   footer: { copyright: { zh: '自定义版权', en: '' }, filing: '备案文字', filingUrl: 'https://example.com/filing', socials: [{ label: 'GitHub', url: 'https://github.com/example' }] }
 };
 
-async function render(file, props = {}, lang = 'zh') {
+async function render(file, props = {}, lang = 'zh', settings = { presentation, logoPath: null }) {
   const mocks = {
-    SettingsContext: `export const useSettings=()=>(${JSON.stringify({ presentation, logoPath: null })});`,
+    SettingsContext: `export const useSettings=()=>(${JSON.stringify(settings)});`,
     AuthContext: `export const useAuth=()=>({user:null,logout:()=>{}});`,
     ThemeContext: `export const useTheme=()=>({mode:'system',isDarkMode:false,toggleTheme:()=>{}});`,
     i18n: `export const getLang=()=>${JSON.stringify(lang)}; export const t=k=>k;export const switchLang=()=>{};`,
@@ -56,6 +56,19 @@ test('navigation uses configured branding and hides disabled destinations', asyn
   assert.doesNotMatch(html, /隐藏友链/);
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /aria-current="page"/);
+});
+
+// 站点名称/作者名尚未从后端返回时不能出现任何占位名字,同时必须保留原有的行盒以免布局位移(CLS)。
+test('blank site name renders no placeholder while keeping the layout boxes', async () => {
+  const blank = { ...presentation, brand: { ...presentation.brand, name: { zh: '', en: '' } }, home: { ...presentation.home, authorName: '' } };
+  const settings = { presentation: blank, logoPath: null };
+  const nav = await render('components/Navbar.tsx', {}, 'zh', settings);
+  assert.doesNotMatch(nav, /journal-monogram/);
+  assert.match(nav, /<span class="journal-brand-name"><\/span>/);
+  assert.match(nav, /aria-label="首页"/);
+  const hero = await render('components/JournalHero.tsx', { presentation: blank, lang: 'zh' }, 'zh', settings);
+  assert.doesNotMatch(hero, /<h2><\/h2>/);
+  assert.match(hero, /<h2>(\u00a0|&nbsp;)<\/h2>/);
 });
 
 test('footer renders configured safe links and legal navigation', async () => {

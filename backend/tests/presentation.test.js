@@ -31,11 +31,14 @@ test('validation returns a clean copy and trims ordinary text', () => {
   assert.notEqual(clean, value);
 });
 
-test('English fields may be blank but the site name and main title may not', () => {
+test('English fields and the site name may be blank but the main title may not', () => {
   const value = defaultPresentation();
   value.brand.name.en = '';
   assert.equal(validatePresentation(value).brand.name.en, '');
-  invalid(p => { p.brand.name.zh = ' '; }, 'brand.name.zh');
+  // 站点名称允许留空(未配置时前端就不再显示占位名字),空白串只被裁剪为空串
+  const blank = defaultPresentation();
+  blank.brand.name.zh = ' ';
+  assert.equal(validatePresentation(blank).brand.name.zh, '');
   invalid(p => { p.home.title.zh = ''; }, 'home.title.zh');
 });
 

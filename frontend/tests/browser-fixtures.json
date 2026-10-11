@@ -3,8 +3,8 @@
     "version": 1,
     "brand": {
       "name": {
-        "zh": "秦一宁",
-        "en": "Qinyining"
+        "zh": "示例刊物",
+        "en": "Sample Journal"
       },
       "description": {
         "zh": "关于技术、创造，以及值得记住的小事。",
@@ -24,7 +24,7 @@
         "zh": "把探索写成文字，让想法在这里生长。",
         "en": "A journal of experiments, ideas, and everyday discoveries."
       },
-      "authorName": "秦一宁",
+      "authorName": "示例刊物",
       "authorBio": {
         "zh": "一个持续学习、记录与创造的人。",
         "en": "Always learning, writing, and building."

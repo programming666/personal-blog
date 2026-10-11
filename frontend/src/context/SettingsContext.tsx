@@ -50,7 +50,10 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
-    if (!pathname.startsWith('/posts/')) document.title = localized(settings.presentation.brand.name, getLang());
+    if (pathname.startsWith('/posts/')) return;
+    // 站点名称为空(未配置或仍在加载)时保留 index.html 里的静态标题,不把标签页标题清空
+    const name = localized(settings.presentation.brand.name, getLang());
+    if (name) document.title = name;
   }, [pathname, settings.presentation.brand.name]);
   useEffect(() => {
     const values = presentationStyle(settings.presentation);

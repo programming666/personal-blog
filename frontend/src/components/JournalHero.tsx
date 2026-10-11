@@ -19,7 +19,8 @@ const JournalHero = ({ presentation, lang = getLang() }: { presentation: Present
             <svg viewBox="0 0 150 145" fill="none"><path d="M70 132C73 100 73 57 87 16M74 99C49 96 32 77 30 57C56 59 72 75 74 99ZM78 72C100 69 119 49 123 29C99 31 82 48 78 72ZM82 49C64 44 52 27 55 10C73 16 82 29 82 49Z" stroke="currentColor" strokeWidth="1.1" /><path d="M35 64L69 94M84 65L116 37M59 17L78 44" stroke="currentColor" strokeWidth=".65" /></svg>
           </div>
           <p className="journal-eyebrow">{lang === 'en' ? 'A NOTE FROM' : '关于这里'}</p>
-          {home.authorName && <h2>{home.authorName}</h2>}
+          {/* 作者名来自后端设置:未返回前用一个不可见空字符占住行盒,避免加载完成后顶动下方内容 */}
+          <h2>{home.authorName || '\u00a0'}</h2>
           <p className="journal-author-bio">{localized(home.authorBio, lang)}</p>
         </aside>
       )}

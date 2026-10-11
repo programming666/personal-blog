@@ -3,20 +3,21 @@ const Setting = require('../models/Setting');
 const PRESENTATION_KEY = 'site.presentation';
 const PAPER_COLORS = ['#f6f4ec', '#faf7ef', '#f3f5f3'];
 
+// 站点名称只来自数据库(或历史 site.title):未配置时留空,避免页面上闪出一个占位名字。
+const legacySiteName = legacyTitle =>
+  typeof legacyTitle === 'string' && legacyTitle.trim() ? legacyTitle.trim().slice(0, 80) : '';
+
 const defaultPresentation = (legacyTitle) => ({
   version: 1,
   brand: {
-    name: {
-      zh: typeof legacyTitle === 'string' && legacyTitle.trim() ? legacyTitle.trim().slice(0, 80) : '秦一宁',
-      en: typeof legacyTitle === 'string' && legacyTitle.trim() ? '' : 'Qinyining'
-    },
+    name: { zh: legacySiteName(legacyTitle), en: '' },
     description: { zh: '关于技术、创造，以及值得记住的小事。', en: 'On technology, making things, and moments worth keeping.' }
   },
   home: {
     eyebrow: { zh: '保持好奇，慢慢生长', en: 'NOTES ON BUILDING & LIVING' },
     title: { zh: '在代码之间，记录生活的回声。', en: 'Between code and everyday life.' },
     subtitle: { zh: '把探索写成文字，让想法在这里生长。', en: 'A journal of experiments, ideas, and everyday discoveries.' },
-    authorName: '秦一宁',
+    authorName: '',
     authorBio: { zh: '一个持续学习、记录与创造的人。', en: 'Always learning, writing, and building.' },
     showAuthor: true
   },
@@ -42,7 +43,7 @@ const boolean = { type: 'boolean' };
 const url = (required = false) => ({ type: 'url', required, max: 2048 });
 const schema = {
   version: enumeration(1),
-  brand: { name: localized(80, true), description: localized(300) },
+  brand: { name: localized(80), description: localized(300) },
   home: {
     eyebrow: localized(80), title: localized(120, true), subtitle: localized(400),
     authorName: text(80), authorBio: localized(600), showAuthor: boolean

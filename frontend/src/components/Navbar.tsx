@@ -53,10 +53,11 @@ const Navbar = () => {
     <header className="journal-header">
       <a className="journal-skip" href="#journal-content">{lang === 'en' ? 'Skip to content' : '跳到正文'}</a>
       <nav className="journal-shell journal-nav" aria-label={lang === 'en' ? 'Main navigation' : '主导航'}>
-        <Link to="/" className="journal-brand" aria-label={brand}>
-          {logoUrl ? <img src={logoUrl} alt="" width={38} height={38} className="journal-logo" /> : (
-            <span className="journal-monogram" aria-hidden="true">{brand.slice(0, 1) || 'Q'}<span>.</span></span>
-          )}
+        <Link to="/" className="journal-brand" aria-label={brand || (lang === 'en' ? 'Home' : '首页')}>
+          {logoUrl ? <img src={logoUrl} alt="" width={38} height={38} className="journal-logo" /> : brand ? (
+            <span className="journal-monogram" aria-hidden="true">{brand.slice(0, 1)}<span>.</span></span>
+          ) : null}
+          {/* 站点名称来自后端设置:未返回时留空,既不闪占位名字,也不改变导航栏布局 */}
           <span className="journal-brand-name">{brand}</span>
         </Link>
         <div className="journal-desktop-links">{renderLinks()}</div>

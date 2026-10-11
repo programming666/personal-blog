@@ -479,8 +479,12 @@ curl -sSI https://$HOST/ | grep -iE 'strict-transport|x-content-type|referrer-po
 # 2) HSTS 必须是 12 个月,不能是 max-age=0  ← 曾经线上就是 0
 curl -sSI https://$HOST/ | grep -i strict-transport
 
-# 3) 最低 TLS 版本必须是 1.2  ← 曾经线上还能协商出 TLSv1.1
-echo | openssl s_client -connect $HOST:443 -tls1_1 2>&1 | grep -E 'Protocol|alert'
+# 3) 最低 TLS 版本必须是 1.2 —— 1.0/1.1 必须被拒(alert 70 protocol_version)
+#    判据只看这一行:失败时 s_client 仍会打印 "Protocol: TLSv1.1" 和
+#    "New, TLSv1.0, Cipher is …" 之类字样(前者是**请求的**协议回显、后者是 CBC 套件的
+#    历史遗留标签),都会被误读成"协商成功"。真正的判据是 Cipher 是不是 0000。
+echo | openssl s_client -connect $HOST:443 -tls1_1 -cipher 'ALL:@SECLEVEL=0' 2>&1 \
+  | grep -E '^New,|^ *Protocol *:|^ *Cipher *:|SSL alert number'
 
 # 4) 证书覆盖范围
 echo | openssl s_client -connect $HOST:443 -servername $HOST 2>/dev/null \
@@ -527,8 +531,16 @@ SSL 剥离防护是零。(第 7 节的 Nginx 模板里那条 `add_header ... HST
 #### 最低 TLS 版本
 
 Cloudflare → SSL/TLS → Edge Certificates → **Minimum TLS Version = 1.2**。
-TLS 1.0 / 1.1 已被 RFC 8996 弃用,而且 1.1 上只能协商 CBC 套件
-(`ECDHE-ECDSA-AES128-SHA`),没有任何现代 AEAD 保护。
+TLS 1.0 / 1.1 已被 RFC 8996 弃用,而且 1.1 上只能协商 CBC 套件,没有现代 AEAD 保护。
+
+> ⚠️ **测这一项时别被 `s_client` 的输出骗了。** 握手**失败**时它照样会打印
+> `Protocol: TLSv1.1`(那只是你**请求**的协议回显)和 `New, TLSv1.0, Cipher is …`
+> (CBC 套件的历史遗留标签,即使真正协商的是 TLS 1.2 也这么印)。唯一可靠的判据是
+> `Cipher` 是不是 `0000` / 有没有 `SSL alert number 70 (protocol_version)`。
+> 另外**用支持 TLS 1.1 的客户端测**:OpenSSL 3.5 默认已经拿不出 TLS 1.1,
+> 需要用 Debian 12 那类 OpenSSL 3.0(并加 `-cipher 'ALL:@SECLEVEL=0'`)。
+> 这一点我自己踩过:仅凭一次在 Windows OpenSSL 3.5.8 上的读数就断言
+> "线上还能协商 1.1",后来用 Debian 12 复测,1.0/1.1 都是 alert 70、只有 1.2/1.3 通。
 
 #### CAA 记录
 

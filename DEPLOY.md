@@ -568,9 +568,24 @@ Cloudflare 侧不需要为 nonce 做额外配置:它会解析本响应头里的 
 (JS Detections / challenge-platform precursor)加上同一个 nonce,Turnstile 官方也推荐
 `nonce + 'strict-dynamic'`。
 
-浏览器控制台里若出现 `Refused to execute inline script`,先分清来源:Cloudflare 的
-Page Shield(Client-side security)会另外注入一条 `Content-Security-Policy-Report-Only`
-头用来采集页面上跑着哪些脚本,那些 "violation" 是它自己的探针报告,不是我们的策略在拦。
+浏览器控制台里若出现一堆 CSP violation,**先分清来源**。上线后实测看到的那些 INFO
+是 Cloudflare 自己注入的探针,不是我们的策略在拦 —— 抓到的响应头长这样:
+
+```
+content-security-policy-report-only: script-src 'unsafe-inline' 'unsafe-eval';
+  connect-src 'none';
+  report-uri https://csp-reporting.cloudflare.com/cdn-cgi/script_monitor/report?m=…
+report-to: {"group":"cf-csp-endpoint", …}
+```
+
+这是 Cloudflare 的 **Script Monitor**(Page Shield 背后的那套)**故意**下发的:策略写得
+离谱地严(`connect-src 'none'`、`script-src` 里连 host 白名单都没有),目的就是让页面上
+每一个脚本和每一条 XHR 都"违规",从而把所有第三方目标采集上来。只有 report-only,
+不会拦任何东西。判据是 `report-uri` 里的 `/cdn-cgi/script_monitor/report`。
+
+要确认**我们自己的**策略没在拦,看 enforce 那条(`Content-Security-Policy`,不带
+`-Report-Only`)以及浏览器里的真实错误级别 —— 我们的问题会是 `error`,
+且一定伴随脚本没跑起来、白屏之类的实际症状。
 
 ### 9.2 源站端口只允许 Cloudflare 回源访问
 

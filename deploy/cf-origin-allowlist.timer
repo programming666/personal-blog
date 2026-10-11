@@ -3,21 +3,17 @@ Description=定期重放 Cloudflare 回源白名单规则(网段每天刷新一�
 Documentation=https://developers.cloudflare.com/fundamentals/concepts/cloudflare-ip-addresses/
 
 [Timer]
-# 开机 30 秒后就位 —— 保证规则在重启后一定会被重新挂上。
-# (只用 OnCalendar 的话,重启后可能最多等 10 分钟才轮到第一个整十分钟刻度。)
-OnBootSec=30s
-
-# 之后每 10 分钟重放一次。重放是幂等的、几乎不耗资源,作用是自愈:
+# 每 10 分钟重放一次。重放是幂等的、几乎不耗资源,作用是自愈:
 # 万一同机上别的组件(mailcow 的 netfilter 容器、docker)动了 INPUT 链,
 # 最多 10 分钟规则就回来了。网段本身仍然只每 24 小时拉一次。
 #
-# 用 OnCalendar(墙钟)而不是 OnUnitActiveSec(相对上次激活):后者只在计时器
-# 处于活动状态期间发生的激活才作数 —— 手工 `systemctl start` 过服务、或服务带
-# RemainAfterExit 时,它可能算不出下一次触发点,于是 next_elapse 变成 infinity,
-# 定时器静默失效(实测踩到过)。墙钟刻度不会有这个问题。
+# 这里**只放墙钟刻度,不放 OnBootSec**。开机那一次由 cf-origin-allowlist.service
+# 自己挂在 multi-user.target 上完成 —— 单调触发点和墙钟刻度混在同一个 timer 里时,
+# 实测 systemd 会因为那个早已过去的 OnBootSec 而算不出下一次触发
+# (NextElapseUSecMonotonic=infinity,`list-timers` 的 NEXT 是空的,定时器静默失效)。
 OnCalendar=*:0/10
 
-# 错过的时间点(比如机器关机)不补跑 —— 开机那条 OnBootSec 已经兜住了。
+# 错过的时间点(机器关机期间)不补跑 —— 开机那次由服务自己兜住。
 Persistent=false
 
 [Install]

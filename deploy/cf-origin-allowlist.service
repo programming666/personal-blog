@@ -7,5 +7,13 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/cf-origin-allowlist.sh
-# 不加 RemainAfterExit:跑完就是 inactive(dead),下一次交给 timer。
+# 跑完就是 inactive(dead),下一次交给 timer。
 # 脚本自己判断缓存是否过期(24h),没过期就只重放规则,不会每次都打接口。
+TimeoutStartSec=60
+
+[Install]
+# 开机跑一次 —— 用「服务挂 multi-user.target」而不是 timer 里的 OnBootSec 来兜住重启。
+# 两者混用时实测会出问题:OnBootSec 产生的单调触发点(30s,早已过去)会让 systemd
+# 算不出下一次触发,OnCalendar 的刻度也不再生效,整个 timer 静默失效。
+# 各管一段就没有这种纠缠:服务负责开机, timer 只负责周期。
+WantedBy=multi-user.target

@@ -572,6 +572,93 @@ Cloudflare 侧不需要为 nonce 做额外配置:它会解析本响应头里的 
 Page Shield(Client-side security)会另外注入一条 `Content-Security-Policy-Report-Only`
 头用来采集页面上跑着哪些脚本,那些 "violation" 是它自己的探针报告,不是我们的策略在拦。
 
+### 9.2 源站端口只允许 Cloudflare 回源访问
+
+只要源站 IP 直接对公网开放,`curl https://<源站IP>:8089` 就能**绕过整个 Cloudflare** ——
+WAF、机器人防护、边缘限速那一层等于不存在。源站 IP 本身并不难拿到(DNS 历史、证书透明度
+日志、`crt.sh`),所以「靠 IP 没人知道」不是防护。
+
+生产机上这些端口是给 Cloudflare 回源的(stunnel 在公网口上做 TLS 终结,再把请求交给
+回环上的后端):
+
+| 端口 | 后端 | 服务的域名 |
+|---|---|---|
+| `3000` | `127.0.0.1:3001` | `xh.do` 主站 |
+| `3002` | `127.0.0.1:3005`(via `3012`) | `xh.do` 的 mailcow 面板 |
+| `3003` | 同上(via `3013`) | `bookshop.wiki` |
+| `3004` | 同上(via `3014`) | `6mail.at` |
+| `8089` | `127.0.0.1:8090` | `blog.xh.do` 后端 |
+| `3001` | —(明文 HTTP 本体) | 上面第一行的后端,stunnel 的转发目标 |
+
+怎么确认某个端口是不是 CF 回源口 —— 在发起真实请求的同时看对端地址,对端落在
+`104.16.0.0/13`、`172.64.0.0/13`、`188.114.96.0/20` 这些网段就是:
+
+```bash
+# 一边采样
+for i in $(seq 1 60); do
+  ss -tn state established | tail -n +2 | awk '{print $4, $5}'
+  sleep 0.5
+done | sort -u | grep ':8089'
+# 一边打真实流量
+curl -sS -o /dev/null https://blog.xh.do/
+```
+
+#### 安装
+
+仓库里 `deploy/` 下三个文件:
+
+```bash
+cd /var/www/blog
+install -m 755 deploy/cf-origin-allowlist.sh /usr/local/sbin/
+install -m 644 deploy/cf-origin-allowlist.service /etc/systemd/system/
+install -m 644 deploy/cf-origin-allowlist.timer   /etc/systemd/system/
+systemctl daemon-reload
+
+# 先干跑,看一遍将要写入的规则
+/usr/local/sbin/cf-origin-allowlist.sh --dry-run
+
+# 首次套用建议留一条自动回滚的后路,确认站点正常后再取消
+systemd-run --on-active=5min --unit=cf-rollback \
+  /usr/local/sbin/cf-origin-allowlist.sh --rollback
+/usr/local/sbin/cf-origin-allowlist.sh --force-refresh
+# 外网验证站点仍正常、且直连源站 IP 已被拒;然后:
+systemctl stop cf-rollback.timer cf-rollback.service
+
+systemctl enable --now cf-origin-allowlist.timer
+```
+
+#### 验证
+
+```bash
+ORIGIN=159.195.244.144
+# 1) 正常路径必须还能通(经 Cloudflare)
+curl -sS -o /dev/null -w '%{http_code}\n' https://blog.xh.do/
+# 2) 直连源站必须失败
+curl -sS -m 5 -o /dev/null -w '%{http_code}\n' https://$ORIGIN:8089/ ; echo "expect exit != 0"
+# 3) 规则与挂载情况
+/usr/local/sbin/cf-origin-allowlist.sh --status
+# 4) 别把别的服务误伤(mailcow 的邮件端口、SSH、8001 都不在限制清单里)
+ss -lntp | grep -E ':(22|25|465|587|993)\b'
+```
+
+#### 几个刻意的设计
+
+- **不用 ipset**。多一个包、多一份状态,而收益只是规则条数少一点。现在是 15 条 v4 +
+  7 条 v6 的纯 iptables 规则,`iptables -L CFONLY` 一眼看完。
+- **回环最优先放行**。stunnel 正是通过 `127.0.0.1` 把请求交给后端的,少了这条线整站就断。
+- **末尾 `RETURN`**,不是 `DROP`。不在端口清单里的流量原样交回 INPUT,mailcow 自己的
+  `MAILCOW` 链(只管它的端口)完全不受影响。
+- **取不到网段列表时拒绝套用**。接口挂了、返回了错误页、或者 CF 大幅缩减了网段 ——
+  一律保留现有规则。残缺白名单会挡住真实用户,清空白名单等于放行全网,两种都比"不动"更糟。
+- **10 分钟重放一次的 timer**,网段仍然只每 24 小时拉一次。重放是幂等的、几乎不耗资源,
+  作用是自愈:万一同机上别的组件动了 INPUT 链,最多 10 分钟规则就回来了。
+
+#### 已知的取舍
+
+加固后**你自己从源站 IP 直连这些端口也不通了**(包括排查问题的时候)。要看后端就登到机器上
+走回环:`curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8090/api/health`。
+这不是缺陷,是这条规则的定义。
+
 ---
 
 ## 10. 后续运维

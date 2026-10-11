@@ -1,0 +1,21 @@
+# 源站端口只允许 Cloudflare 回源访问 —— 每 10 分钟重放一次规则(自愈)
+#
+# 它做什么:万一同机上别的组件(mailcow 的 netfilter 容器、docker)动了 INPUT 链,
+# 最多 10 分钟规则就回来了。重放是幂等的、几乎不耗资源;脚本内部对 CF 网段做了
+# 24 小时缓存,所以这里每 10 分钟跑一次并不会每次都去打 Cloudflare 接口。
+#
+# 为什么是 cron 而不是 systemd timer:这台机器上这个 systemd timer 实测**不会**按
+# OnCalendar 触发 —— 启动时补跑一次之后就再也不武装(NextElapseUSecMonotonic=infinity,
+# `systemctl list-timers` 的 NEXT 是空的),试过 OnUnitActiveSec / OnUnitInactiveSec /
+# 纯 OnCalendar 都一样;而同机 apt-daily / fstrim 等系统自带 timer 都正常。
+# 定时器静默失效比多一个 cron 文件危险得多,所以这里不跟它较劲。
+#
+# 开机那一次不靠这里:cron 在机器重启后一定会跑,但为了规则尽早生效(而不是等下一个
+# 整十分钟刻度),由 systemd 服务 cf-origin-allowlist.service(WantedBy=multi-user.target)
+# 在开机时先跑一次。两者各管一段。
+#
+# PATH 必须显式给:iptables / ip6tables 在 /usr/sbin,而 cron 默认的 PATH 里没有它,
+# 缺了这行脚本会找不到 iptables。
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+*/10 * * * * root /usr/local/sbin/cf-origin-allowlist.sh 2>&1 | logger -t cf-origin-allowlist

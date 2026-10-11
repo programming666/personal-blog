@@ -609,9 +609,9 @@ curl -sS -o /dev/null https://blog.xh.do/
 
 ```bash
 cd /var/www/blog
-install -m 755 deploy/cf-origin-allowlist.sh /usr/local/sbin/
+install -m 755 deploy/cf-origin-allowlist.sh   /usr/local/sbin/
 install -m 644 deploy/cf-origin-allowlist.service /etc/systemd/system/
-install -m 644 deploy/cf-origin-allowlist.timer   /etc/systemd/system/
+install -m 644 deploy/cf-origin-allowlist.cron /etc/cron.d/cf-origin-allowlist
 systemctl daemon-reload
 
 # 先干跑,看一遍将要写入的规则
@@ -624,8 +624,25 @@ systemd-run --on-active=5min --unit=cf-rollback \
 # 外网验证站点仍正常、且直连源站 IP 已被拒;然后:
 systemctl stop cf-rollback.timer cf-rollback.service
 
-systemctl enable --now cf-origin-allowlist.timer
+# 开机那次交给 systemd 服务;周期重放交给 cron
+systemctl enable cf-origin-allowlist.service
 ```
+
+装完确认一遍 `/etc/cron.d/cf-origin-allowlist` 的权限是 `644 root:root`(cron.d 的文件
+**不能可执行**,否则 cron 会忽略它),并且它必须带 `PATH=` 那行 —— `iptables` 在
+`/usr/sbin`,cron.d 的默认 PATH 里没有。
+
+### 为什么周期重放用 cron 而不是 systemd timer
+
+这台机器上这个 systemd timer **实测不会按 OnCalendar 触发**,四种写法都试过:
+`OnBootSec + OnCalendar`、`OnUnitActiveSec`、`OnUnitInactiveSec`、纯 `OnCalendar` ——
+一律是「启动时补跑一次,之后再也不武装」,`NextElapseUSecMonotonic=infinity`、
+`systemctl list-timers` 的 NEXT 是空的;临时改成每 30 秒触发,45 秒内也毫无动静。
+而同一台机器上 `apt-daily` / `fstrim` / `logrotate` 等系统自带 timer 的 NEXT 都正常。
+定时器静默失效比多一个 cron 文件危险得多,所以不跟它较劲。
+
+分工是清楚的:**开机那次**由 `cf-origin-allowlist.service`(`WantedBy=multi-user.target`)
+负责,不等 cron 的下一个整十分钟刻度;**之后每 10 分钟**由 cron 重放一次。
 
 #### 验证
 
@@ -650,8 +667,10 @@ ss -lntp | grep -E ':(22|25|465|587|993)\b'
   `MAILCOW` 链(只管它的端口)完全不受影响。
 - **取不到网段列表时拒绝套用**。接口挂了、返回了错误页、或者 CF 大幅缩减了网段 ——
   一律保留现有规则。残缺白名单会挡住真实用户,清空白名单等于放行全网,两种都比"不动"更糟。
-- **10 分钟重放一次的 timer**,网段仍然只每 24 小时拉一次。重放是幂等的、几乎不耗资源,
+- **每 10 分钟重放一次**(cron),网段仍然只每 24 小时拉一次。重放是幂等的、几乎不耗资源,
   作用是自愈:万一同机上别的组件动了 INPUT 链,最多 10 分钟规则就回来了。
+  实测有效:手工 `iptables -F CFONLY` 并摘掉 INPUT 跳转之后,cron 在一分钟内把跳转和
+  v4/v6 规则全部补了回来。
 
 #### 已知的取舍
 

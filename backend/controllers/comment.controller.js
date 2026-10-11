@@ -2,6 +2,8 @@ const Comment = require('../models/Comment');
 const Post = require('../models/Post');
 const { moderateComment, applyVerdictToComment } = require('../services/aiModeration');
 const { invalidateSource, prewarmTranslations } = require('../services/aiTranslate');
+const mongoose = require('mongoose');
+
 exports.createComment = async (req, res) => {
   try {
     if (req.user.canComment === false) {
@@ -57,11 +59,10 @@ exports.createComment = async (req, res) => {
     // 语气不友善且有实质内容时,applyVerdictToComment 会用 AI 重写版替换 content 并保留原文
     applyVerdictToComment(comment, verdict, content);
     if (comment.isModified()) await comment.save();
-await comment.populate('author', 'username name avatar role');
     // M2+: approved 后异步预热译文,公开 GET 直接命中缓存不调 AI
     prewarmTranslations({ sourceType: 'comment', sourceId: comment._id }, { body: comment.content }).catch(() => {});
 
-    await comment.populate('author', 'username name avatar role');
+    await comment.populate('author', 'name avatar role');
 
     if (verdict.status === 'rejected') {
       return res.status(200).json({
@@ -90,11 +91,17 @@ await comment.populate('author', 'username name avatar role');
 
 exports.getPostComments = async (req, res) => {
   try {
+    // 非法 ObjectId 必须 400:交给 Mongoose 会抛 CastError,而这里 catch 成 500,
+    // 于是一个拼错的 URL 就变成"服务器内部错误"(线上实测 /api/comments/post/6a9)
+    if (!mongoose.isValidObjectId(req.params.postId)) {
+      return res.status(400).json({ success: false, message: '无效的文章 ID' });
+    }
     const filter = {
       post: req.params.postId,
       moderationStatus: 'approved'
     };
-    const comments = await Comment.find(filter).sort({ createdAt: -1 }).populate('replyTo', 'username name avatar');
+    // replyTo 只用来在页面上显示 @某人,不需要 username(同 Comment 模型 pre-find 的说明)
+    const comments = await Comment.find(filter).sort({ createdAt: -1 }).populate('replyTo', 'name avatar');
     res.status(200).json({ success: true, count: comments.length, data: comments });
   } catch (error) {
     res.status(500).json({ success: false, message: '服务器内部错误' });
@@ -103,6 +110,10 @@ exports.getPostComments = async (req, res) => {
 
 exports.updateComment = async (req, res) => {
   try {
+    // 非法 ObjectId → 400(否则 CastError 被下面的 catch 吞成 500,见 getPostComments)
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: '无效的评论 ID' });
+    }
     let comment = await Comment.findById(req.params.id);
     if (!comment) {
       return res.status(404).json({ success: false, message: 'Comment not found' });
@@ -117,7 +128,7 @@ exports.updateComment = async (req, res) => {
       { content: req.body.content },
       // 管理员豁免 100 字上限,其余用户仍受 schema 限制
       { new: true, runValidators: req.user.role !== 'admin' }
-    ).populate('author', 'username name avatar role');
+    ).populate('author', 'name avatar role');
 
     // 内容已变更,失效旧译文缓存,下次访问按需重译
     await invalidateSource('comment', comment._id);
@@ -130,6 +141,9 @@ exports.updateComment = async (req, res) => {
 
 exports.deleteComment = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: '无效的评论 ID' });
+    }
     const comment = await Comment.findById(req.params.id);
     if (!comment) {
       return res.status(404).json({ success: false, message: 'Comment not found' });
@@ -150,6 +164,9 @@ exports.deleteComment = async (req, res) => {
 
 exports.likeComment = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: '无效的评论 ID' });
+    }
     const comment = await Comment.findById(req.params.id);
     if (!comment) {
       return res.status(404).json({ success: false, message: 'Comment not found' });

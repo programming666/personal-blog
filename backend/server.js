@@ -6,7 +6,20 @@ const passport = require('passport');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 require('dotenv').config();
+
+// 启动期配置自检 — 宁可起不来,也不要带着一个空 JWT_SECRET 跑:
+// 空 secret 会让 jwt.sign 抛错 → 所有登录 500,表现为"网站活着但登不上",排查成本很高。
+// (仓库历史上跟踪过一份 backend/.env.production,JWT_SECRET 就是一个空格,所以这里做硬校验。)
+const BOOT_JWT_SECRET = (process.env.JWT_SECRET || '').trim();
+if (!BOOT_JWT_SECRET) {
+  console.error('[boot] JWT_SECRET 未设置 — 请用 `openssl rand -hex 48` 生成后写入 backend/.env');
+  process.exit(1);
+}
+if (BOOT_JWT_SECRET.length < 32) {
+  console.warn(`[boot] JWT_SECRET 只有 ${BOOT_JWT_SECRET.length} 字符,建议至少 32(openssl rand -hex 48)`);
+}
 // 初始化 Express 应用
 const app = express();
 app.set('trust proxy', 1);
@@ -14,26 +27,64 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
 // H1/M3: 严格 CSP + 点击劫持防护(全站,含 /api)
-// - script: 仅本站 + Cloudflare Turnstile(前台评论区体验验证)
 // - style: 允许内联(React 大量 style={{}} 内联样式)
 // - frame-ancestors 'none': iframe 嵌入 /admin 与登录页一律拒绝
-const CSP_HEADER = [
-  "default-src 'self'",
-  // Cloudflare Turnstile (前端评论区人机验证) + Cloudflare Web Analytics (beacon.min.js)
-  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloudflareinsights.com",
-  "object-src 'none'",
-  "frame-src https://challenges.cloudflare.com",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'"
-].join('; ');
+//
+// script-src 用 per-request nonce + 'strict-dynamic',不再挂 'unsafe-inline':
+// 令牌存在 localStorage(`localStorage.token` + `Authorization: Bearer`),一次 XSS 就是
+// 完整账号接管;而 script-src 带 'unsafe-inline' 又没有 nonce/hash 时,浏览器会真的放行
+// 内联脚本 —— 那份 CSP 对 XSS 等于没配。加 nonce 后现代浏览器会忽略 'unsafe-inline'
+// 与 host 白名单,只认带 nonce 的脚本,以及被带 nonce 的脚本动态加载的脚本。
+//
+// 为什么只在 SERVE_FRONTEND=true 时启用 nonce:nonce 必须写进 index.html 的 <script> 标签,
+// 而只有 Express 亲自返回那份 HTML 时它才碰得到模板。若前端由 Nginx 直接 serve,
+// 后端下发一个 HTML 里不存在的 nonce 会导致**全站脚本被拦**,所以那种形态下退回
+// 原来的 host 白名单写法,并在启动日志里明说(CSP_NONCE_MODE)。
+//
+// Cloudflare 侧兼容性是官方支持的:Cloudflare 会解析本响应头里的 nonce 并给
+// 自己注入的脚本(JS Detections / challenge-platform precursor)加上同一个 nonce;
+// Turnstile 官方文档同样推荐 nonce + 'strict-dynamic'(它把 api.js 标签上的 nonce
+// 传给动态加载的资源)。启用 Page Shield 时它注入的 Report-Only 头与本头互不影响。
+const CSP_CDN_SOURCES = 'https://challenges.cloudflare.com https://static.cloudflareinsights.com';
+const CSP_NONCE_MODE = process.env.SERVE_FRONTEND === 'true';
+
+function buildCspHeader(nonce) {
+  const scriptSrc = CSP_NONCE_MODE
+    ? `'self' 'nonce-${nonce}' 'strict-dynamic' ${CSP_CDN_SOURCES}`
+    : `'self' 'unsafe-inline' ${CSP_CDN_SOURCES}`;
+  return [
+    "default-src 'self'",
+    // Cloudflare Turnstile (前端评论区人机验证) + Cloudflare Web Analytics (beacon.min.js)
+    `script-src ${scriptSrc}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloudflareinsights.com",
+    "object-src 'none'",
+    "frame-src https://challenges.cloudflare.com",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; ');
+}
+// 每个响应一个 nonce。非 nonce 模式下它不会进 CSP,但仍然生成,
+// 这样下面给 HTML 注入 nonce 的逻辑只有一条分支。
 app.use((req, res, next) => {
+  const nonce = crypto.randomBytes(16).toString('base64');
+  res.locals.cspNonce = nonce;
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', CSP_HEADER);
+  res.setHeader('Content-Security-Policy', buildCspHeader(nonce));
+  // 基线安全头 — 必须放在 Express 而不是只写进 DEPLOY.md 的 Nginx 配置里:
+  // 线上是 SERVE_FRONTEND=true + Cloudflare Tunnel,请求根本不经过那份 Nginx server 块,
+  // 里面的 add_header 一行都不会生效(实测线上缺失 nosniff / Referrer-Policy)。
+  // nosniff 尤其关键:/uploads/* 是用户上传内容,没有它浏览器会按内容嗅探类型。
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // 站点不用摄像头/麦克风/定位/支付,直接全部关掉(空 allowlist = 连自身也不放行)
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  // 登录是整页跳转(LoginPage 用 window.location.href,不是 window.open 弹窗),
+  // 所以不需要 opener 句柄 —— 关掉可防止跨窗口 opener 劫持
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   next();
 });
 // 中间件配置
@@ -60,6 +111,15 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+// cors 在 credentials:true 下会无条件写 Access-Control-Allow-Credentials,
+// 即使 Origin 没命中白名单(那种情况下根本没写 ACAO)。这个头在没有 ACAO 时对浏览器
+// 完全无效,只是给扫描器/审计工具留一个永久误报 —— 没有 ACAO 就顺手摘掉。
+app.use((req, res, next) => {
+  if (!res.getHeader('Access-Control-Allow-Origin')) {
+    res.removeHeader('Access-Control-Allow-Credentials');
+  }
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
@@ -197,8 +257,18 @@ if (process.env.SERVE_FRONTEND === 'true') {
     return og;
   }
 
+  // 给 HTML 里每个外部 <script ...> 挂上本次请求的 nonce。
+  // 只加一个属性,不动 type="module" / crossorigin / src 的顺序,避免破坏 Vite 的产物。
+  // CSP 是 per-response 的,所以这一步必须发生在缓存模板之外(缓存的是无 nonce 的原模板)。
+  // 若 HTML 里已经写了 nonce(例如未来手工内联脚本),用负向先行断言跳过,避免出现两个 nonce。
+  function applyScriptNonce(html, nonce) {
+    if (!nonce) return html;
+    return html.replace(/<script(?![^>]*\bnonce=)/gi, `<script nonce="${nonce}"`);
+  }
+
   // 把 og meta + favicon 注入 index.html 模板
-  function renderHtmlWithMeta(template, og, siteMeta, base) {
+  function renderHtmlWithMeta(template, og, siteMeta, base, nonce) {
+    template = applyScriptNonce(template, nonce);
     const metaLines = [
       `<meta property="og:title" content="${escapeHtml(og.title)}" />`,
       `<meta property="og:description" content="${escapeHtml(og.description)}" />`,
@@ -242,11 +312,20 @@ if (process.env.SERVE_FRONTEND === 'true') {
         indexHtmlCache = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
       }
       const base = `${req.protocol}://${req.get('host')}`;
-      const html = renderHtmlWithMeta(indexHtmlCache, og, siteMeta, base);
+      const html = renderHtmlWithMeta(indexHtmlCache, og, siteMeta, base, res.locals.cspNonce);
       res.send(html);
     } catch (err) {
       console.error('[seo] fallback render failed', err.message);
-      res.sendFile(path.join(distPath, 'index.html'));
+      // 兜底路径同样要带 nonce:直接 sendFile 会送出不带 nonce 的 HTML,
+      // 在 nonce 模式下会被我们自己的 CSP 拦掉全部脚本。读文件失败就地 500,
+      // 不再抛给外层(否则又是同一条失败路径)。
+      try {
+        const raw = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+        res.type('html').send(applyScriptNonce(raw, res.locals.cspNonce));
+      } catch (readErr) {
+        console.error('[seo] fallback serve failed', readErr.message);
+        res.status(500).end();
+      }
     }
   });
 }
@@ -285,7 +364,19 @@ app.use((err, req, res, next) => {
 });
 // 启动服务器
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// 监听地址。默认 0.0.0.0 保持既有行为,但**部署在反向代理/TLS 终结器后面时应该设
+// HOST=127.0.0.1**:否则 API 会在公网端口上被直接访问,绕过前面的 TLS 与 Cloudflare
+// (实测生产机 159.195.244.144:8090 就是这样一个开放口,明文 HTTP 可以直接打 API)。
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on ${HOST}:${PORT}`);
+  // 明确说出 CSP 生效形态:nonce 模式要求 index.html 由 Express 返回(SERVE_FRONTEND=true),
+  // 若前端改由 Nginx serve 而这里仍是 true,页面会被自己的 CSP 拦掉所有脚本 —— 这条日志是排查入口。
+  console.log(
+    CSP_NONCE_MODE
+      ? '[csp] nonce + strict-dynamic 已启用(Express 亲自返回 index.html)'
+      : '[csp] 未启用 nonce(前端不由 Express serve),script-src 仍依赖 unsafe-inline —— ' +
+        '此时 XSS 纵深防御很弱,建议改用 Express serve 前端或把 index.html 的脚本改成 hash 白名单'
+  );
 });
 module.exports = app;

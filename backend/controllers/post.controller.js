@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
 const { invalidateSource, prewarmTranslations } = require('../services/aiTranslate');
+const { parsePagination } = require('../utils/pagination');
 // L3: 列表接口只接受声明的查询参数(page/limit/tag),未知参数(?status=draft 等)一律丢弃,
 // 避免枚举探测出隐藏行为 — 接口对参数白名单的态度是:不声明的就不生效。
 function pickQuery(req, allowed) {
@@ -15,9 +16,8 @@ function pickQuery(req, allowed) {
 exports.getPosts = async (req, res) => {
   try {
     const q = pickQuery(req, ['page', 'limit', 'tag']);
-    const page = parseInt(q.page, 10) || 1;
-    const limit = parseInt(q.limit, 10) || 10;
-    const skip = (page - 1) * limit;
+    // page/limit 经统一钳制:limit 上限 50,page 至少 1(见 utils/pagination.js)
+    const { page, limit, skip } = parsePagination(q);
     const tag = q.tag;
 
     const query = { status: 'published' };
@@ -25,7 +25,9 @@ exports.getPosts = async (req, res) => {
 
     const [posts, total] = await Promise.all([
       Post.find(query)
-        .populate('author', 'username name avatar role')
+        // 公开列表:不要 username —— 管理员的 username 就是 ADMIN_USERNAME(线上是邮箱),
+        // 吐给匿名访客等于把登录名白送出去,只剩密码一层(见 models/Comment.js 同名改动)
+        .populate('author', 'name avatar role')
         .skip(skip)
         .limit(limit)
         .sort({ publishedAt: -1 }),
@@ -49,7 +51,8 @@ exports.getPost = async (req, res) => {
     const idCond = mongoose.isValidObjectId(req.params.id) ? { _id: req.params.id } : null;
     const query = idCond ? { $or: [idCond, { slug: req.params.slug }] } : { slug: req.params.slug };
     const post = await Post.findOne(query)
-      .populate('author', 'username name avatar bio role')
+      // 同 getPosts:公开详情页不下发 author.username
+      .populate('author', 'name avatar bio role')
       .populate('comments');
 
     if (!post) {

@@ -1,11 +1,11 @@
 const Announcement = require('../models/Announcement');
 const { invalidateSource, prewarmTranslations } = require('../services/aiTranslate');
+const mongoose = require('mongoose');
+const { parsePagination } = require('../utils/pagination');
 
 exports.listAnnouncements = async (req, res) => {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 20;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20 });
 
     const query = { isPublished: true };
     const [items, total] = await Promise.all([
@@ -29,6 +29,10 @@ exports.listAnnouncements = async (req, res) => {
 
 exports.getAnnouncement = async (req, res) => {
   try {
+    // 非法 ObjectId → 400(否则 CastError 被 catch 吞成 500,线上实测 /api/announcements/xyz)
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: '无效的公告 ID' });
+    }
     const announcement = await Announcement.findById(req.params.id);
     if (!announcement || (!announcement.isPublished && !isAdmin(req))) {
       return res.status(404).json({ success: false, message: '公告不存在' });
@@ -41,9 +45,7 @@ exports.getAnnouncement = async (req, res) => {
 
 exports.listAllAnnouncements = async (req, res) => {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 50;
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 50, maxLimit: 100 });
 
     const [items, total] = await Promise.all([
       Announcement.find()
@@ -86,6 +88,9 @@ exports.createAnnouncement = async (req, res) => {
 
 exports.updateAnnouncement = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: '无效的公告 ID' });
+    }
     const updates = {};
     ['title', 'content', 'isPublished', 'pinned'].forEach(k => {
       if (req.body[k] !== undefined) updates[k] = req.body[k];
@@ -111,6 +116,9 @@ exports.updateAnnouncement = async (req, res) => {
 
 exports.deleteAnnouncement = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: '无效的公告 ID' });
+    }
     const announcement = await Announcement.findByIdAndDelete(req.params.id);
     if (!announcement) {
       return res.status(404).json({ success: false, message: '公告不存在' });

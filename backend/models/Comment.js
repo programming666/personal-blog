@@ -45,11 +45,18 @@ const CommentSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// 获取评论时自动填充作者信息(含 role 用于前端 admin 徽章)
+// 获取评论时自动填充作者信息(含 role 用于前端 admin 徽章)。
+// 刻意不 select `username`:这是全站评论唯一的作者来源,而 GET /api/comments/post/:id
+// 是匿名可读的 —— 管理员一旦评论,ADMIN_USERNAME(线上是邮箱)就会被任何路人抓走。
+// 展示名一律走 `name`(GitHub / OAuth 建号时都写了 name,管理员建号时是「系统管理员」,
+// 线上实际值是 550W),前端 `author.name || author.username` 的回退链对这一改动无感。
+// 注意:实测 pre('find') 钩子在 exec 时才跑,其 select 会**覆盖**调用方显式写的
+// `.populate('author', 'username …')` —— 所以 admin.controller 里那份显式 populate
+// 也只会拿到 name。后台界面同样优先渲染 name,不受影响。
 CommentSchema.pre(/^find/, function(next) {
   this.populate({
     path: 'author',
-    select: 'username name avatar role'
+    select: 'name avatar role'
   });
   next();
 });
